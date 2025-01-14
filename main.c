@@ -169,15 +169,27 @@ int main(int argc, char *argv[]) {
 
     Grid* grid = generate_grid();
     debug_grid(grid, -1);
+    plot_graph(grid, "his-0-timestep.png");
 
     for (int i = 0; i < TIMESTEPS; i++) {
         time_step(grid);
         debug_grid(grid, i);
+
+        if (i % (TIMESTEPS / 4) == 0) {
+            char string[48];
+            sprintf(string, "his-%d-timestep.png", i);
+            plot_graph(grid, string);
+        }
+
         #ifdef TERMINATE_ON_ZERO_AG
             if (grid->lists[AG_MOLECOLE].size == 0)
                 break;
         #endif
     }
+
+    char string[48];
+    sprintf(string, "his-%d-timestep.png", TIMESTEPS);
+    plot_graph(grid, string);
 
     gettimeofday(&end, NULL);
 

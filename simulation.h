@@ -19,7 +19,7 @@
 #define TIMESTEPS 2000
 #define B_CELL_NUM 5
 #define T_CELL_NUM 5
-#define AG_MOLECULE_NUM 500
+#define AG_MOLECULE_NUM 1000
 
 /* Processes one full time step of the simulation 
    and updates the grid. */
@@ -28,3 +28,6 @@ void time_step(Grid* grid);
 /* Generates the order of entities that will be processed
    in the time step. */
 Entity** generate_order(Grid* grid);
+
+/* Creates a PNG image graph with all the entities of the grid */
+void plot_graph(Grid* grid, char* name);

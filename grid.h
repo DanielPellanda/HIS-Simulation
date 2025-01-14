@@ -2,8 +2,8 @@
 
 #define FAST_GRID_SEARCH
 
-#define GRID_WIDTH 50
-#define GRID_HEIGHT 50
+#define GRID_WIDTH 1000
+#define GRID_HEIGHT 1000
 
 /* Defines an element in a list of entities. */
 typedef struct Block
