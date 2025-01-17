@@ -12,6 +12,9 @@ typedef struct
 } 
 Vector2;
 
+/* Generates either true or false randomly. */
+bool randbool();
+
 /* Generates a random floating point value between 0 and 1. */
 double randdouble();
 

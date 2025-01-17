@@ -6,6 +6,8 @@
 #include "grid.h"
 #include "memory.h"
 
+int GRID_SIZE = DEFAULT_GRID_SIZE;
+
 Entity* list_get(EntityList* list, Vector2 position) {
     EntityBlock** current = &list->first;
     while (*current != NULL) {
@@ -104,8 +106,10 @@ Grid* grid_init() {
         grid->lists[i].size = 0;
     }
     #ifdef FAST_GRID_SEARCH
-        for (int i = 0; i < GRID_WIDTH; i++) {
-            for (int j = 0; j < GRID_HEIGHT; j++) {
+        grid->entities = (Entity***)memalloc(GRID_SIZE * sizeof(Entity**));
+        for (int i = 0; i < GRID_SIZE; i++) {
+            grid->entities[i] = (Entity**)memalloc(GRID_SIZE * sizeof(Entity*));
+            for (int j = 0; j < GRID_SIZE; j++) {
                 grid->entities[i][j] = NULL;
             }
         }
@@ -117,6 +121,12 @@ void grid_free(Grid* grid) {
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
         list_clear(&grid->lists[i]);
     }
+    #ifdef FAST_GRID_SEARCH
+        for (int i = 0; i < GRID_SIZE; i++) {
+            memfree(grid->entities[i]);
+        }
+        memfree(grid->entities);
+    #endif
     memfree(grid);
 }
 
@@ -175,21 +185,6 @@ bool grid_is_pos_free(Grid* grid, Vector2 position) {
 
 
 
-Entity* look_for_nearby_entity(Grid* grid, Vector2 position, EntityType type) {
-    EntityBlock** current = &grid->lists[type].first;
-    while (*current != NULL) {
-        if (
-        /* Skip entities that have already interacted or are about to be removed. */
-        !(*current)->entity->has_interacted && !(*current)->entity->to_be_removed &&
-        abs(position.x - (*current)->entity->position.x) <= PROXIMITY_DIST && 
-        abs(position.y - (*current)->entity->position.y) <= PROXIMITY_DIST) {
-            return (*current)->entity;
-        }
-        current = &(*current)->next;;
-    }
-    return NULL;
-}
-
 Entity** look_for_nearby_entities(Grid* grid, Vector2 position, EntityType type, int* count) {
     *count = 0;
     Entity** array = (Entity**)memalloc(grid->lists[type].size * sizeof(Entity*));
@@ -208,133 +203,58 @@ Entity** look_for_nearby_entities(Grid* grid, Vector2 position, EntityType type,
     return array;
 }
 
-Vector2* find_free_pos_nearby(Grid* grid, Vector2 reference) {
-    for (int i = 0; i < PROXIMITY_DIST; i++) {
-        for (int j = 0; j < PROXIMITY_DIST; j++) {
-            if (i == 0 && j == 0)
-                continue;
-            Vector2* position = (Vector2*)memalloc(sizeof(Vector2));
-            position->x = reference.x + i;
-            position->y = reference.y + j;
-            if (grid_is_pos_free(grid, *position)) {
-                return position;
-            }
-
-            /* Search around so that we priorize nearby positions. */
-            if (i != 0) {
-                position->x = reference.x - i;
-                if (grid_is_pos_free(grid, *position)) {
-                    return position;
-                }
-            }
-            if (j != 0) {
-                position->y = reference.y - j;
-                if (grid_is_pos_free(grid, *position)) {
-                    return position;
-                }
-                if (i != 0) {
-                    position->x = reference.x + i;
-                    if (grid_is_pos_free(grid, *position)) {
-                        return position;
-                    }
-                }
-            }
-            memfree(position);
-        }
-    }
-    return NULL;
-}
-
-Vector2* find_n_free_nearby_pos(Grid* grid, Vector2 reference, int n, int* count) {
+Vector2* find_all_free_nearby_pos(Grid* grid, Vector2 reference, int* count) {
     *count = 0;
-    Vector2* array = (Vector2*)malloc(n * sizeof(Vector2));
-    for (int i = 0; i < PROXIMITY_DIST; i++) {
-        for (int j = 0; j < PROXIMITY_DIST; j++) {
-            if (*count >= n)
-                return array;
+    Vector2* array = (Vector2*)malloc((2*PROXIMITY_DIST+1) * (2*PROXIMITY_DIST+1) * sizeof(Vector2));
+    for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
+        for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
             if (i == 0 && j == 0)
                 continue;
-            Vector2* position = (Vector2*)memalloc(sizeof(Vector2));
-            position->x = reference.x + i;
-            position->y = reference.y + j;
-            if (grid_is_pos_free(grid, *position)) {
-                bool present = false;
-                /* Don't insert duplicates. */
-                for (int k = 0; k < *count; k++) {
-                    if (is_matching_pos(array[k], *position)) {
-                        present = true;
-                        break;
-                    }
-                }
-                if (!present) {
-                    array[*count] = *position;
-                    (*count)++;
-                    if (*count >= n)
-                        return array;
-                }
-            }
-
-            /* Search around so that we priorize nearby positions. */
-            if (i != 0) {
-                position->x = reference.x - i;
-                if (grid_is_pos_free(grid, *position)) {
-                    bool present = false;
-                    /* Don't insert duplicates. */
-                    for (int k = 0; k < *count; k++) {
-                        if (is_matching_pos(array[k], *position)) {
-                            present = true;
-                            break;
-                        }
-                    }
-                    if (!present) {
-                        array[*count] = *position;
-                        (*count)++;
-                        if (*count >= n)
-                            return array;
-                    }
-                }
-            }
-            if (j != 0) {
-                position->y = reference.y - j;
-                if (grid_is_pos_free(grid, *position)) {
-                    bool present = false;
-                    /* Don't insert duplicates. */
-                    for (int k = 0; k < *count; k++) {
-                        if (is_matching_pos(array[k], *position)) {
-                            present = true;
-                            break;
-                        }
-                    }
-                    if (!present) {
-                        array[*count] = *position;
-                        (*count)++;
-                        if (*count >= n)
-                            return array;
-                    }
-                }
-                if (i != 0) {
-                    position->x = reference.x + i;
-                    if (grid_is_pos_free(grid, *position)) {
-                        bool present = false;
-                        /* Don't insert duplicates. */
-                        for (int k = 0; k < *count; k++) {
-                            if (is_matching_pos(array[k], *position)) {
-                                present = true;
-                                break;
-                            }
-                        }
-                        if (!present) {
-                            array[*count] = *position;
-                            (*count)++;
-                            if (*count >= n)
-                                return array;
-                        }
-                    }
-                }
+            
+            Vector2 position = {
+                reference.x + i,
+                reference.y + j
+            };
+            if (grid_is_pos_free(grid, position)) {
+                array[*count] = position;
+                (*count)++;
             }
         }
     }
     return array;
+}
+
+Vector2* find_free_pos_nearby(Grid* grid, Vector2 reference) {
+    int n = 0;
+    Vector2* position = NULL;
+    Vector2* free_positions = find_all_free_nearby_pos(grid, reference, &n);
+    if (n > 0) {
+        position = (Vector2*)memalloc(sizeof(Vector2));
+        *position = free_positions[rand() % n];
+    }
+    memfree(free_positions);
+    return position;
+}
+
+Vector2* find_n_free_nearby_pos(Grid* grid, Vector2 reference, int max, int* count) {
+    int n = 0;
+    *count = 0;
+    Vector2* free_positions = find_all_free_nearby_pos(grid, reference, &n);
+    if (n > 0) {
+        Vector2* array = (Vector2*)memalloc(n * sizeof(Vector2));
+        for (int i = 0; i < max; i++) {
+            if (n < 1)
+                break;
+            int seed = rand() % n;
+            array[*count] = free_positions[seed];
+            free_positions[seed] = free_positions[n-1];
+            (*count)++;
+            n--;
+        }
+        return array;
+    }
+    memfree(free_positions);
+    return NULL;
 }
 
 void duplicate_entity(Grid* grid, Entity* entity) {
@@ -396,8 +316,7 @@ void diffuse_entity(Grid* grid, Entity* entity) {
     if (!grid_is_pos_free(grid, new_position)) {
         /* If the position is not free, try to look for a nearby one. */
         Vector2* pos = find_free_pos_nearby(grid, new_position);
-        if (pos == NULL)
-            /* If no free positions can be found, the entity remains stationary. */
+        if (pos == NULL) /* If no free positions can be found, the entity remains stationary. */
             return; 
         new_position = *pos;
         memfree(pos);
@@ -444,7 +363,6 @@ void b_cell_interact(Grid* grid, Entity* bcell) {
                     if (entities[i]->status == CS_ACTIVE) {
                         bcell->status = CS_STIMULATED;
                         bcell->has_interacted = true;
-                        entities[i]->status = CS_STIMULATED;
                         entities[i]->has_interacted = true;
                         break;
                     }
@@ -512,8 +430,8 @@ void antibody_interact(Grid* grid, Entity* antibody) {
 
 bool is_pos_valid(Vector2 pos) {
     return 
-    pos.x >= 0.0f && pos.x <= GRID_WIDTH-1.0f &&
-    pos.y >= 0.0f && pos.y <= GRID_HEIGHT-1.0f;
+    pos.x >= 0.0f && pos.x <= GRID_SIZE-1.0f &&
+    pos.y >= 0.0f && pos.y <= GRID_SIZE-1.0f;
 }
 
 bool is_matching_pos(Vector2 pos, Vector2 pos2) {
@@ -527,8 +445,8 @@ void adjust_pos(Vector2* pos) {
         pos->x = 0.0f;
     if (pos->y < 0.0f)
         pos->y = 0.0f;
-    if (pos->x > GRID_WIDTH-1.0f)
-        pos->x = GRID_WIDTH-1.0f;
-    if (pos->y > GRID_HEIGHT-1.0f)
-        pos->y = GRID_HEIGHT-1.0f;
+    if (pos->x > GRID_SIZE-1.0f)
+        pos->x = GRID_SIZE-1.0f;
+    if (pos->y > GRID_SIZE-1.0f)
+        pos->y = GRID_SIZE-1.0f;
 }

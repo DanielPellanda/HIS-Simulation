@@ -2,33 +2,34 @@
 
 #define FAST_GRID_SEARCH
 
-#define GRID_WIDTH 1000
-#define GRID_HEIGHT 1000
+#define DEFAULT_GRID_SIZE 1000
+
+extern int GRID_SIZE;
 
 /* Defines an element in a list of entities. */
 typedef struct Block
 {
-    Entity* entity;
-    struct Block* next;
+   Entity* entity;
+   struct Block* next;
 }
 EntityBlock;
 
 /* A list of entities */
 typedef struct 
 {
-    int size;
-    EntityBlock* first;
+   int size;
+   EntityBlock* first;
 }
 EntityList;
 
 /* A grid containing a list of each type of entity */
 typedef struct
 {
-    int total_size;
-    EntityList lists[MAX_ENTITYTYPE];
-    #ifdef FAST_GRID_SEARCH
-        Entity* entities[GRID_WIDTH][GRID_HEIGHT];
-    #endif
+   int total_size;
+   EntityList lists[MAX_ENTITYTYPE];
+   #ifdef FAST_GRID_SEARCH
+      Entity*** entities;
+   #endif
 }
 Grid;
 
@@ -79,13 +80,13 @@ Entity** grid_get_all(Grid* grid);
 bool grid_is_pos_free(Grid* grid, Vector2 position);
 
 
-/* Gets an entity of a specific type close to the specified position.
-   Returns NULL if no entities can be found nearby. */
-Entity* look_for_nearby_entity(Grid* grid, Vector2 position, EntityType type);
+
 
 /* Returns an array of entities of a specific type close to the specified position.
    The referenced integer parameter gets set to the length of the array generated. */
 Entity** look_for_nearby_entities(Grid* grid, Vector2 position, EntityType type, int* count);
+
+Vector2* find_all_free_nearby_pos(Grid* grid, Vector2 reference, int* count);
 
 /* Gets the nearest free available position within PROXIMITY_DIST distance away
    from the origin position passed as parameter.

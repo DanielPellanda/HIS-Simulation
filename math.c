@@ -6,6 +6,10 @@
 #include "memory.h"
 #include "math.h"
 
+bool randbool() {
+    return rand() % 2;
+}
+
 double randdouble() {
     return (double)rand() / (double)RAND_MAX;
 }

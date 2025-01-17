@@ -34,7 +34,6 @@ typedef enum
 {
     CS_ACTIVE,
     CS_INTERNALIZED, // Inactive
-    //CS_EXPOSING,
     CS_STIMULATED, // Duplicating
 
     MAX_CELLSTATE 
