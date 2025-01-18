@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
         if (i % (TIMESTEPS / 4) == 0) {
             sprintf(string, "his-%d-timestep.png", i);
             plot_graph(grid, string);
-            printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibody=%d\n", 
+            printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
                 i, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
         }
         #ifdef REINSERT_AG
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     plot_graph(grid, string);
     gettimeofday(&end, NULL);
 
-    printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibody=%d\n", 
+    printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
         TIMESTEPS, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
 
     int elapsed = (int)((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000);

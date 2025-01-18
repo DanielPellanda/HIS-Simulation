@@ -131,6 +131,9 @@ void grid_free(Grid* grid) {
 }
 
 Entity* grid_get(Grid* grid, Vector2 position) {
+    if (!is_pos_valid(position))
+        return NULL;
+
     #ifdef FAST_GRID_SEARCH
         return grid->entities[(int)round(position.x)][(int)round(position.y)];
     #else
@@ -144,8 +147,17 @@ Entity* grid_get(Grid* grid, Vector2 position) {
 }
 
 Entity* grid_get_type(Grid* grid, Vector2 position, EntityType type) {
+    if (!is_pos_valid(position))
+        return NULL;
+
     #ifdef FAST_GRID_SEARCH
-        return grid_get(grid, position);
+        Entity* entity = grid_get(grid, position);
+        if (entity != NULL) {
+            if (entity->type == type) {
+                return entity;
+            }
+        }
+        return NULL;
     #else
         return list_get(&grid->lists[type], position);
     #endif
@@ -172,29 +184,47 @@ bool grid_is_pos_free(Grid* grid, Vector2 position) {
     if (!is_pos_valid(position))
         return false;
 
-    #ifdef FAST_GRID_SEARCH
-        return grid->entities[(int)round(position.x)][(int)round(position.y)] == NULL;
-    #else
-        for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-            if (list_get(&grid->lists[i], position) != NULL)
-                return false;
-        }
-        return true;
-    #endif
+    return grid_get(grid, position) == NULL;
 }
 
 
 
-Entity** look_for_nearby_entities(Grid* grid, Vector2 position, EntityType type, int* count) {
+
+Entity** look_for_nearby_entities(Grid* grid, Vector2 reference, EntityType type, int* count) {
     *count = 0;
     Entity** array = (Entity**)memalloc(grid->lists[type].size * sizeof(Entity*));
+
+    #ifdef FAST_GRID_SEARCH
+        if (grid->lists[type].size > (2*PROXIMITY_DIST+1)*(2*PROXIMITY_DIST+1)) {
+            for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
+                for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
+                    if (i == 0 && j == 0)
+                        continue;
+                    Vector2 position = {
+                        reference.x + i,
+                        reference.y + j
+                    };
+
+                    Entity* entity = grid_get_type(grid, position, type);
+                    if (entity != NULL) {
+                        if (!entity->has_interacted && !entity->to_be_removed) {
+                            array[*count] = entity;
+                            (*count)++;
+                        }
+                    }
+                }
+            }
+            return array;
+        }
+    #endif
+
     EntityBlock** current = &grid->lists[type].first;
     while (*current != NULL) {
         if (
         /* Skip entities that have already interacted or are about to be removed. */
         !(*current)->entity->has_interacted && !(*current)->entity->to_be_removed && 
-        abs(position.x - (*current)->entity->position.x) <= PROXIMITY_DIST && 
-        abs(position.y - (*current)->entity->position.y) <= PROXIMITY_DIST) {
+        abs(reference.x - (*current)->entity->position.x) <= PROXIMITY_DIST && 
+        abs(reference.y - (*current)->entity->position.y) <= PROXIMITY_DIST) {
             array[*count] = (*current)->entity;
             (*count)++;
         }
@@ -210,11 +240,11 @@ Vector2* find_all_free_nearby_pos(Grid* grid, Vector2 reference, int* count) {
         for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
             if (i == 0 && j == 0)
                 continue;
-            
             Vector2 position = {
                 reference.x + i,
                 reference.y + j
             };
+
             if (grid_is_pos_free(grid, position)) {
                 array[*count] = position;
                 (*count)++;
