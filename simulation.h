@@ -1,3 +1,6 @@
+#ifndef SIMULATION_H
+#define SIMULATION_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -57,3 +60,5 @@ void print_grid(Grid* grid);
 void print_element_count(Grid* grid);
 
 void print_element_pos(Grid* grid);
+
+#endif

@@ -1,3 +1,6 @@
+#ifndef ENTITY_H
+#define ENTITY_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -69,3 +72,5 @@ Entity* create_entity(EntityType type, Vector2 position);
 
 /* Returns a string representing the entity type specified. */
 char* type_to_string(EntityType type);
+
+#endif

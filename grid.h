@@ -1,3 +1,6 @@
+#ifndef GRID_H
+#define GRID_H
+
 #include "entity.h"
 
 #define FAST_GRID_SEARCH
@@ -129,3 +132,5 @@ bool is_matching_pos(Vector2 pos, Vector2 pos2);
 
 /* Corrects the position passed as parameter so that it respects the boundaries of the grid. */
 void adjust_pos(Vector2* pos);
+
+#endif

@@ -1,7 +1,9 @@
+#ifndef MEMORY_H
+#define MEMORY_H
+
 #include <stdbool.h>
 #include <stddef.h>
 
-#define EXE_MODE 0
 #define BITS_IN_A_BYTE 8
 
 /* Allocates a block of memory of the given size. 
@@ -19,3 +21,5 @@ bool getbit(unsigned char byte, int position);
 
 /* Sets the bit value of a byte in the specified position. */
 void setbit(unsigned char* byte, bool value, int position);
+
+#endif

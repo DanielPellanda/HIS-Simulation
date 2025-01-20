@@ -1,3 +1,6 @@
+#ifndef MATH_H
+#define MATH_H
+
 #include <stdbool.h>
 
 #define LAMBDA 0.1
@@ -29,3 +32,5 @@ int hammingdist(unsigned char byte1, unsigned char byte2);
 
 /* Returns a 2-D vector with both X and Y equal to 0. */
 Vector2 vector_zero();
+
+#endif
