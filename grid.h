@@ -61,7 +61,7 @@ bool grid_remove(Grid* grid, Vector2 position);
    Returns true if an entity was deleted, false otherwise. */
 bool grid_remove_type(Grid* grid, Vector2 position, EntityType type);
 
-/* Removes all entities from the grid and frees the grid. */
+/* Removes all entities and frees the grid. */
 void grid_free(Grid* grid);
 
 /* Initializes and allocates the grid. */

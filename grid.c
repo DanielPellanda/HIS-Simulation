@@ -235,7 +235,7 @@ Entity** look_for_nearby_entities(Grid* grid, Vector2 reference, EntityType type
 
 Vector2* find_all_free_nearby_pos(Grid* grid, Vector2 reference, int* count) {
     *count = 0;
-    Vector2* array = (Vector2*)malloc((2*PROXIMITY_DIST+1) * (2*PROXIMITY_DIST+1) * sizeof(Vector2));
+    Vector2* array = (Vector2*)memalloc((2*PROXIMITY_DIST+1) * (2*PROXIMITY_DIST+1) * sizeof(Vector2));
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
         for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
             if (i == 0 && j == 0)
