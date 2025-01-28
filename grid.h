@@ -54,6 +54,9 @@ typedef struct
    #ifdef FAST_GRID_SEARCH
       Entity*** entities;
    #endif
+   #ifdef OPEN_MP
+      int** locks;
+   #endif
 }
 Grid;
 

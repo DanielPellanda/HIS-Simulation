@@ -38,6 +38,18 @@ void memfree(void* p) {
     free(p);
 }
 
+#ifdef OPEN_MP
+    int trylock(int* lock, int old, int new) {  
+        int value = 0;
+        #pragma omp atomic 
+        {
+            value = *lock;
+            *lock = value == old ? new : value;
+        }
+        return value;
+    }
+#endif
+
 bool getbit(unsigned char byte, int position) {
     if (position < 0 || position > BITS_IN_A_BYTE-1)
         return false;

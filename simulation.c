@@ -28,38 +28,77 @@
 #include "simulation.h"
 #include "memory.h"
 
+#ifdef OPEN_MP 
+    #include <omp.h>
+#endif
+
 int TIMESTEPS = DEFAULT_TIMESTEPS;
 int B_CELL_NUM = DEFAULT_B_CELLS;
 int T_CELL_NUM = DEFAULT_T_CELLS;
 int AG_MOLECULE_NUM = DEFAULT_AG_MOLECULES;
 
 void time_step(Grid* grid) {
-    /* Generate the process order of each entity. */
-    Entity** entity_list = generate_order(grid);
-    if (entity_list == NULL)
-        return;
+    #ifdef OPEN_MP
+        omp_time_step(grid);
+    #else
+        /* Generate the process order of each entity. */
+        Entity** entity_list = generate_order(grid);
+        if (entity_list == NULL)
+            return;
 
-    int size = grid->total_size;
-    /* Check for interactions first. */
-    for (int i = 0; i < size; i++) {
-        if (entity_list[i] == NULL)
-            continue;
-        if (entity_list[i]->to_be_removed)
-            continue;
-        scan_interactions(grid, entity_list[i]);
-    }
-    /* Process their movement. */
-    for (int i = 0; i < size; i++) {
-        if (entity_list[i] == NULL)
-            continue;
-        if (entity_list[i]->to_be_removed) {
-            grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
-            continue;
+        int size = grid->total_size;
+        /* Check for interactions first. */
+        for (int i = 0; i < size; i++) {
+            if (entity_list[i] == NULL)
+                continue;
+            if (entity_list[i]->to_be_removed)
+                continue;
+            scan_interactions(grid, entity_list[i]);
         }
-        diffuse_entity(grid, entity_list[i]);
-    }
-    memfree(entity_list);
+        /* Process their movement. */
+        for (int i = 0; i < size; i++) {
+            if (entity_list[i] == NULL)
+                continue;
+            if (entity_list[i]->to_be_removed) {
+                grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
+                continue;
+            }
+            diffuse_entity(grid, entity_list[i]);
+        }
+        memfree(entity_list);
+    #endif
 }
+
+#ifdef OPEN_MP
+    void omp_time_step(Grid* grid) {
+        Entity** entity_list = grid_get_all(grid);
+        if (entity_list == NULL)
+            return NULL;
+
+        int size = grid->total_size;
+        /* Check for interactions first. */
+        #pragma omp parallel for default(shared)
+            for (int i = 0; i < size; i++) {
+                if (entity_list[i] == NULL)
+                    continue;
+                if (entity_list[i]->to_be_removed)
+                    continue;
+                scan_interactions(grid, entity_list[i]);
+            }
+        /* Process their movement. */
+        #pragma omp parallel for default(shared)
+            for (int i = 0; i < size; i++) {
+                if (entity_list[i] == NULL)
+                    continue;
+                if (entity_list[i]->to_be_removed) {
+                    grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
+                    continue;
+                }
+                diffuse_entity(grid, entity_list[i]);
+            }
+        memfree(entity_list);
+    }
+#endif
 
 Entity** generate_order(Grid* grid) {
     Entity** array = grid_get_all(grid);

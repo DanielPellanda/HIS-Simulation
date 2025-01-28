@@ -56,6 +56,11 @@ extern int AG_MOLECULE_NUM;
 /* Processes one full time step of the simulation and updates the grid. */
 void time_step(Grid* grid);
 
+#ifdef OPEN_MP
+  /* Processes one full time step of the simulation in parallel execution using OpenMP and updates the grid. */
+   void omp_time_step(Grid* grid)
+#endif
+
 /* Generates the order of entities that will be processed during the time step. */
 Entity** generate_order(Grid* grid);
 

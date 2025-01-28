@@ -4,13 +4,19 @@ FILE=his-simulation
 all: 				${FILE}
 
 cuda:				cuda-${FILE}
+
+omp:				omp-${FILE}
 					
 ${FILE}:			main.c simulation.o memory.o grid.o math.o entity.o memory.o pbPlots.o supportLib.o
 					gcc ${CFLAGS} main.c simulation.o memory.o grid.o math.o entity.o pbPlots.o supportLib.o -o ${FILE} -lm
 					rm -f *.o *.png
 					
-cuda-${FILE}:		cuda/cuda-main.cu cuda/cuda-memory.cu cuda/cuda-grid.cu cuda/cuda-simulation.cu simulation.o memory.o grid.o math.o entity.o memory.o pbPlots.o supportLib.o
-					nvcc cuda/cuda-main.cu cuda/cuda-memory.cu cuda/cuda-grid.cu cuda/cuda-simulation.cu simulation.o memory.o grid.o math.o entity.o memory.o pbPlots.o supportLib.o -o cuda-${FILE} -lm
+cuda-${FILE}:		cuda/cuda-main.cu cuda/cuda-memory.cu cuda/cuda-math.cu cuda/cuda-entity.cu cuda/cuda-grid.cu cuda/cuda-simulation.cu memory.o pbPlots.o supportLib.o
+					nvcc cuda/cuda-main.cu cuda/cuda-memory.cu cuda/cuda-math.cu cuda/cuda-entity.cu cuda/cuda-grid.cu cuda/cuda-simulation.cu memory.o pbPlots.o supportLib.o -o cuda-${FILE} -lm
+					rm -f *.o *.png
+
+omp-${FILE}:		main.c simulation.o memory.o grid.o math.o entity.o memory.o pbPlots.o supportLib.o
+					gcc ${CFLAGS} -fopenmp -DOPEN_MP main.c simulation.o memory.o grid.o math.o entity.o pbPlots.o supportLib.o -o omp-${FILE} -lm
 					rm -f *.o *.png
 
 simulation.o:		simulation.c simulation.h memory.c grid.c math.c entity.c
@@ -34,7 +40,7 @@ pbPlots.o:			lib/pbPlots.c lib/pbPlots.h
 supportLib.o:		lib/supportLib.c lib/supportLib.h
 					gcc -std=c99 -O3 -march=native -c lib/supportLib.c
 
-.PHONY:				clean cuda
+.PHONY:				clean cuda omp
 
 clean:
 					rm -f ${FILE} cuda-${FILE} *.o *.png

@@ -75,6 +75,9 @@ typedef struct
 
     bool has_interacted;
     bool to_be_removed;
+    #ifdef OPEN_MP
+        int lock;
+    #endif
 } 
 Entity;
 
