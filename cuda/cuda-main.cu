@@ -38,25 +38,19 @@ void read_parameters(int argc, char *argv[]) {
         }
     }
     if (argc > 2) {
-        int size = atoi(argv[2]);
-        if (size > 0) {
-            GRID_SIZE = size;
-        }
-    }
-    if (argc > 3) {
-        int antigens = atoi(argv[3]);
+        int antigens = atoi(argv[2]);
         if (antigens >= 0) {
             AG_MOLECULE_NUM = antigens;
         }
     }
-    if (argc > 4) {
-        int b_cells = atoi(argv[4]);
+    if (argc > 3) {
+        int b_cells = atoi(argv[3]);
         if (b_cells >= 0) {
             B_CELL_NUM = b_cells;
         }
     }
-    if (argc > 5) {
-        int t_cells = atoi(argv[5]);
+    if (argc > 4) {
+        int t_cells = atoi(argv[4]);
         if (t_cells >= 0) {
             T_CELL_NUM = t_cells;
         }
