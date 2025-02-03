@@ -41,7 +41,7 @@ void memfree(void* p) {
 #ifdef OPEN_MP
     int trylock(int* lock, int old, int new) {  
         int value = 0;
-        #pragma omp atomic 
+        #pragma omp critical 
         {
             value = *lock;
             *lock = value == old ? new : value;

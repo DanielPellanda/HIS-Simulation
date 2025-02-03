@@ -53,7 +53,7 @@ void time_step(Grid* grid) {
                 continue;
             if (entity_list[i]->to_be_removed)
                 continue;
-            scan_interactions(grid, entity_list[i]);
+            process_interactions(grid, entity_list[i]);
         }
         /* Process their movement. */
         for (int i = 0; i < size; i++) {
@@ -73,7 +73,7 @@ void time_step(Grid* grid) {
     void omp_time_step(Grid* grid) {
         Entity** entity_list = grid_get_all(grid);
         if (entity_list == NULL)
-            return NULL;
+            return;
 
         int size = grid->total_size;
         /* Check for interactions first. */
@@ -83,7 +83,7 @@ void time_step(Grid* grid) {
                     continue;
                 if (entity_list[i]->to_be_removed)
                     continue;
-                scan_interactions(grid, entity_list[i]);
+                process_interactions(grid, entity_list[i]);
             }
         /* Process their movement. */
         #pragma omp parallel for default(shared)
@@ -285,6 +285,7 @@ void plot_graph(Grid* grid, char* name) {
     for (int i = 0; i < index; i++) {
         memfree(xs[i]);
         memfree(ys[i]);
+        memfree(series[i]);
     }
     memfree(series);
     memfree(xs);

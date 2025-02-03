@@ -33,16 +33,13 @@ double affinity_potential(unsigned char receptor1, unsigned char receptor2) {
     return pow(BIND_CHANCE, (dist - BITS_IN_A_BYTE) / (AFFINITY_MIN - BITS_IN_A_BYTE));
 }
 
-bool can_entities_bind(Entity* entity, Entity* entity2, bool specific) {
-    if (specific) {
-        for (int i = 0; i < RECEPTOR_SIZE; i++) {
-            /* Only one pair of receptors needs to bind. */
-            if (randdouble() < affinity_potential(entity->receptor[i], entity2->receptor[i]))
-                return true;
-        }
-        return false;
+bool can_entities_bind(Entity* entity, Entity* entity2) {
+    for (int i = 0; i < RECEPTOR_SIZE; i++) {
+        /* Only one pair of receptors needs to bind. */
+        if (randdouble() < affinity_potential(entity->receptor[i], entity2->receptor[i]))
+            return true;
     }
-    return randdouble() < BIND_CHANCE;
+    return false;
 }
 
 void hypermutation(Entity* entity) {

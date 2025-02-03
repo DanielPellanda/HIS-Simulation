@@ -25,7 +25,7 @@
 #include <stdbool.h>
 
 #define LAMBDA 0.1
-#define TIME_FACTOR 0.2
+#define TIME_FACTOR 1.0
 #define PI 3.14159265358
 
 /* A 2-D Vector that can be used to define a point in a two-dimensional space. */

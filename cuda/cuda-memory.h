@@ -25,12 +25,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define BITS_IN_A_BYTE 8
+
 void cudaAlloc(void** p, size_t size);
 
 void cudaCopy(void* dest, void* src, size_t size, cudaMemcpyKind type);
 
+void* memalloc(size_t size);
 
+void memfree(void* p);
 
+__host__ __device__ bool getbit(unsigned char byte, int position);
+
+__host__ __device__ void setbit(unsigned char* byte, bool value, int position);
 
 /* from https://gist.github.com/ashwin/2652488 */
 

@@ -72,20 +72,23 @@ int main(int argc, char *argv[]) {
     gettimeofday(&start, NULL);
 
     Grid* grid = generate_grid();
+    sprintf(string, "his-0-timestep.png");
+    plot_graph(grid, string);
+
     for (int i = 0; i < TIMESTEPS; i++) {
         time_step(grid);
         debug_grid(grid, i);
-        if (i % (TIMESTEPS / 4) == 0) {
-            sprintf(string, "his-%d-timestep.png", i);
-            plot_graph(grid, string);
-            printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
-                i, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
-        }
         #ifdef REINSERT_AG
-            if (i % (TIMESTEPS / 2) == 0) {
+            if (i % (TIMESTEPS / 2) == 0 && i > 0) {
                 reinsert_antigens(grid);
             }
         #endif
+        if (i % (TIMESTEPS / 4) == 0) {
+            sprintf(string, "his-%d-timestep.png", i);
+            plot_graph(grid, string);
+        }
+        printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
+            i, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
         #ifdef TERMINATE_ON_ZERO_AG
             if (grid->lists[AG_MOLECOLE].size == 0)
                 break;

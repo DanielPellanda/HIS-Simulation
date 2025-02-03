@@ -137,7 +137,7 @@ void generate_antibodies(Grid* grid, Vector2 origin);
 void diffuse_entity(Grid* grid, Entity* entity);
 
 /* Check and process the first possibile interaction for the entity passed as parameter. */
-void scan_interactions(Grid* grid, Entity* entity);
+void process_interactions(Grid* grid, Entity* entity);
 
 /* Process interactions for B_CELL type entities. */
 void b_cell_interact(Grid* grid, Entity* bcell);

@@ -25,7 +25,7 @@
 #include <stdbool.h>
 
 #define LAMBDA 0.1
-#define TIME_FACTOR 0.2
+#define TIME_FACTOR 1.0
 #define PI 3.14159265358
 
 /* A 2-D Vector that can be used to define a point in a two-dimensional space. */
@@ -37,13 +37,13 @@ typedef struct
 Vector2;
 
 /* Generates either true or false randomly. */
-__host__ __device__ bool randbool();
+bool randbool();
 
 /* Generates a random floating point value between 0 and 1. */
-__host__ __device__ double randdouble();
+double randdouble();
 
 /* Generates a byte of random bits. */
-__host__ __device__ unsigned char randbyte();
+unsigned char randbyte();
 
 /* Computes the Langevin equation with the given parameters. */
 __host__ __device__ double langevin(double velocity, double force, double mass);

@@ -49,7 +49,8 @@ typedef struct
    int total_size;
    EntityList lists[MAX_ENTITYTYPE];
    Entity* entities[GRID_SIZE][GRID_SIZE];
-   int locks[GRID_SIZE][GRID_SIZE];
+   // int locks[GRID_SIZE][GRID_SIZE];
+   // int warp_lock;
 }
 Grid;
 
@@ -71,12 +72,12 @@ void list_clear(EntityList* list);
 void list_clear_device(EntityList* list);
 
 /* Copies into device memory the entity list passed as parameter. */
-void list_copy_to_device(EntityList* list, Grid* d_grid, EntityList* d_list);
+void list_copy_to_device(EntityList* list, Grid* h_grid, EntityList* h_list);
 
 // void list_copy_to_host(EntityList* d_list, Grid* grid, EntityList* list);
 
 /* Returns a pointer of a copy in device memory of the entity block passed as parameter. */
-EntityBlock* block_copy_to_device(EntityBlock* block, Grid* d_grid);
+EntityBlock* block_copy_to_device(EntityBlock* block, Grid* h_grid);
 
 // void block_copy_to_host(Entity* d_block, Grid* grid, Entity* block);
 
@@ -90,6 +91,8 @@ bool grid_remove(Grid* grid, Vector2 position);
 /* Removes an entity of a specific type in the given position from the grid.
    Returns true if an entity was deleted, false otherwise. */
 bool grid_remove_type(Grid* grid, Vector2 position, EntityType type);
+
+__host__ __device__ void grid_check(Grid* grid);
 
 /* Removes all entities and frees the grid. */
 void grid_free(Grid* grid);
@@ -111,17 +114,15 @@ __host__ __device__ Entity* grid_get(Grid* grid, Vector2 position);
 
 /* Gets the entity of a specific type with the given position from the grid. 
    Returns NULL if there are no entities in that position. */
-Entity* grid_get_type(Grid* grid, Vector2 position, EntityType type);
+__host__ __device__ Entity* grid_get_type(Grid* grid, Vector2 position, EntityType type);
 
 /* Returns true if the given position is not occupied by any entity.
    Returns false if an entity is occupying that position. */
 __host__ __device__ bool grid_is_pos_free(Grid* grid, Vector2 position);
 
-/* Sets a device pointer with the address of an entity inside a grid stored in device memory. */
-__global__ void set_device_pointer_with_entity(Entity** p, Grid* grid, Vector2 position, EntityType type);
+// __device__ void grid_insert_device(Grid* grid, EntityBlock* block);
 
-
-
+// __global__ void kernel_grid_insert(Grid* grid, EntityBlock* block);
 
 
 /* Returns an array of entities of a specific type close to the specified position.
@@ -149,16 +150,15 @@ void duplicate_entity(Grid* grid, Entity* entity);
 void generate_antibodies(Grid* grid, Vector2 origin);
 
 /* Process one movement step of the specified entity inside the grid. */
-__device__ void diffuse_entity(Grid* grid, Entity* entity, int blocksize, curandState* rng)
+void diffuse_entity(Grid* grid, Entity* entity);
+
+// __device__ void diffuse_entity(Grid* grid, Entity* entity, curandState* rng);
 
 /* Check and process the first possibile interaction for the entity passed as parameter. */
-__host__ __device__ void scan_interactions(Grid* grid, Entity* entity);
+__device__ void process_interactions(Grid* grid, Entity* entity);
 
 /* Process interactions for B_CELL type entities. */
-__host__ __device__ void b_cell_interact(Grid* grid, Entity* bcell);
-
-/* Looks for nearby compatible entities for the B_CELL passed as parameter. */
-__device__ void b_cell_look_for_entity(Grid* grid, Entity* cell);
+__device__ void b_cell_interact(Grid* grid, Entity* bcell);
 
 /* Process interactions for T_CELL type entities. */
 __device__ void t_cell_interact(Grid* grid, Entity* tcell);

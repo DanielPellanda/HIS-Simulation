@@ -35,7 +35,7 @@
 //#define DEBUG_POSITIONS
 
 /* Run a check on the validity of the grid after every time step. */
-//#define ASSERT
+#define ASSERT
 
 /* Terminate the simulation immediately if no antigens can be found. */
 //#define TERMINATE_ON_ZERO_AG
@@ -57,8 +57,8 @@ extern int AG_MOLECULE_NUM;
 void time_step(Grid* grid);
 
 #ifdef OPEN_MP
-  /* Processes one full time step of the simulation in parallel execution using OpenMP and updates the grid. */
-   void omp_time_step(Grid* grid)
+   /* Processes one full time step of the simulation in parallel execution using OpenMP and updates the grid. */
+   void omp_time_step(Grid* grid);
 #endif
 
 /* Generates the order of entities that will be processed during the time step. */

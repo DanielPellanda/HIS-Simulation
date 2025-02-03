@@ -25,37 +25,48 @@
 #include <math.h>
 #include "cuda-entity.h"
 #include "cuda-memory.h"
+#include "cuda-simulation.h"
 
-__host__ __device__ double affinity_potential(unsigned char receptor1, unsigned char receptor2) {
+__device__ double affinity_potential(unsigned char receptor1, unsigned char receptor2) {
     int dist = hammingdist(receptor1, receptor2);
     if (dist < AFFINITY_MIN)
         return 0.0;
     return pow(BIND_CHANCE, (dist - BITS_IN_A_BYTE) / (AFFINITY_MIN - BITS_IN_A_BYTE));
 }
 
-__host__ __device__ bool can_entities_bind(Entity* entity, Entity* entity2, bool specific) {
-    if (specific) {
-        for (int i = 0; i < RECEPTOR_SIZE; i++) {
-            /* Only one pair of receptors needs to bind. */
-            if (randdouble() < affinity_potential(entity->receptor[i], entity2->receptor[i]))
-                return true;
-        }
-        return false;
+__device__ double extract_rand(Entity* entity) {
+    if (entity->seed < 0.0) {
+        entity->seed *= -1;
     }
-    return randdouble() < BIND_CHANCE;
+    while (entity->seed > 1.0) {
+        entity->seed /= 10;
+    }
+    double rand = entity->seed;
+    for (int i = 0; i < RECEPTOR_SIZE; i++) {
+        entity->seed *= (double)entity->receptor[i];
+    }
+    return rand;
 }
 
-__host__ __device__ void hypermutation(Entity* entity) {
+__device__ bool can_entities_bind(Entity* entity, Entity* entity2) {
+    for (int i = 0; i < RECEPTOR_SIZE; i++) {
+        /* Only one pair of receptors needs to bind. */
+        if (extract_rand(entity) < affinity_potential(entity->receptor[i], entity2->receptor[i]))
+            return true;
+    }
+    return false;
+}
+
+void hypermutation(Entity* entity) {
     #ifdef POISSON_MUTATION
         // Poisson distribution
 
         /* Choose how many and which bits are going to get changed
            and store the indexes in an array. */
-        int num_bits = randint() % (BITS_IN_A_BYTE * RECEPTOR_SIZE); // extract bits to change
-        int* positions;
-        cudaAlloc((void**)&positions, num_bits * sizeof(int));
+        int num_bits = rand() % (BITS_IN_A_BYTE * RECEPTOR_SIZE); // extract bits to change
+        int* positions = (int*)memalloc(num_bits * sizeof(int));
         for (int i = 0; i < num_bits; i++) {
-            positions[i] = randrandint() % (BITS_IN_A_BYTE * RECEPTOR_SIZE); // extract index to change
+            positions[i] = rand() % (BITS_IN_A_BYTE * RECEPTOR_SIZE); // extract index to change
         }
 
         /* Invert the value of every bit in the position of each index contained in the array. */
@@ -65,7 +76,7 @@ __host__ __device__ void hypermutation(Entity* entity) {
             bool set = !getbit(entity->receptor[index], pos);
             setbit(&entity->receptor[index], set, pos);
         }
-        cudaFree(positions);
+        memfree(positions);
     #else
         // Binomial distribution
         for (int i = 0; i < RECEPTOR_SIZE; i++) {
@@ -80,14 +91,14 @@ __host__ __device__ void hypermutation(Entity* entity) {
     #endif
 }
 
-__host__ __device__ Entity* create_entity(EntityType type, Vector2 position) {
-    Entity* entity;
-    cudaAlloc((void**)&entity, sizeof(Entity));
+Entity* create_entity(EntityType type, Vector2 position) {
+    Entity* entity = (Entity*)memalloc(sizeof(Entity));
     entity->type = type;
     entity->position = position;
     entity->velocity = vector_zero();
     entity->has_interacted = true; // begin interactions on the next time step
     entity->to_be_removed = false;
+    entity->seed = randdouble();
     for (int i = 0; i < RECEPTOR_SIZE; i++)
         entity->receptor[i] = randbyte();
     switch (type) {
@@ -102,7 +113,7 @@ __host__ __device__ Entity* create_entity(EntityType type, Vector2 position) {
     return entity;
 }
 
-__host__ __device__ char* type_to_string(EntityType type) {
+const char* type_to_string(EntityType type) {
     switch (type) {
         case B_CELL:
             return "B Cell";
@@ -115,5 +126,4 @@ __host__ __device__ char* type_to_string(EntityType type) {
         default:
             return "Invalid";
     }
-    return "Invalid";
 }

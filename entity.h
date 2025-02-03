@@ -86,7 +86,7 @@ double affinity_potential(unsigned char receptor1, unsigned char receptor2);
 
 /* Determines whether two different entities can bind
    based on the affinity potential of their receptors. */
-bool can_entities_bind(Entity* entity, Entity* entity2, bool specific);
+bool can_entities_bind(Entity* entity, Entity* entity2);
 
 /* Mutates the receptor of an entity. */
 void hypermutation(Entity* entity);

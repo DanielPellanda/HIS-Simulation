@@ -19,6 +19,12 @@
 *
 ****************************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
+#include <assert.h>
 #include "cuda-memory.h"
 
 void cudaAlloc(void** p, size_t size) {
@@ -27,4 +33,37 @@ void cudaAlloc(void** p, size_t size) {
 
 void cudaCopy(void* dest, void* src, size_t size, cudaMemcpyKind type) {
     cudaSafeCall(cudaMemcpy(dest, src, size, type));
+}
+
+void* memalloc(size_t size) {
+    void* p = malloc(size);
+    assert(p != NULL);
+    return p;
+}
+
+void memfree(void* p) {
+    assert(p != NULL);
+    free(p);
+}
+
+__host__ __device__ bool getbit(unsigned char byte, int position) {
+    if (position < 0 || position > BITS_IN_A_BYTE-1)
+        return false;
+    unsigned char offset = 1;
+    for (int i = 1; i <= position; i++)
+        offset *= 2;
+    unsigned char bit = byte & offset;
+    return bit;
+}
+
+__host__ __device__ void setbit(unsigned char* byte, bool value, int position) {
+    if (position < 0 || position > BITS_IN_A_BYTE-1)
+        return;
+    unsigned char offset = 1;
+    for (int i = 1; i <= position; i++)
+        offset *= 2;
+    if (value)
+        *byte |= offset;
+    else
+        *byte &= ~offset;
 }

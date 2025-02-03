@@ -22,6 +22,7 @@
 #ifndef CUDA_SIM_H
 #define CUDA_SIM_H
 
+#include <math.h>
 #include "cuda-grid.h"
 #include "cuda-entity.h"
 #include "cuda-math.h"
@@ -42,7 +43,7 @@
 /* Reinsert all antigens after the completion of 50% of the timesteps. */
 #define REINSERT_AG
 
-#define BLKDIM 1024
+#define BLKDIM 32
 
 #define DEFAULT_TIMESTEPS 20000
 #define DEFAULT_B_CELLS 20
@@ -57,14 +58,15 @@ extern int AG_MOLECULE_NUM;
 /* Processes one full time step of the simulation and updates the grid. */
 void time_step(Grid* grid);
 
-/* Initializes the seed for the random number generator in device memory. */
-__global__ void kernel_init_rng(curandState* rng);
+__device__ int getthreadindex();
+
+__global__ void kernel_gather_entities(Grid* grid, Entity** gpu_entities);
 
 /* Process entity interactions for every GPU thread. */
-__global__ void kernel_scan_interactions(Grid* grid, Entity** array, int size);
+__global__ void kernel_process_interactions(Grid* grid, Entity** array, int size);
 
 /* Process entity movement for every GPU thread. */
-__global__ void kernel_diffuse_entity(Grid* grid, Entity** array, int size, curandState* rng) ;
+// __global__ void kernel_diffuse_entity(Grid* grid, Entity** array, int size, curandState* rng);
 
 /* Creates the grid and populates it with entities. */
 Grid* generate_grid();

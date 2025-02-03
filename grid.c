@@ -281,14 +281,22 @@ Vector2* find_all_free_nearby_pos(Grid* grid, Vector2 reference, int* count) {
                 reference.y + j
             };
 
+            if (!is_pos_valid(position))
+                continue;
+
             #ifdef OPEN_MP
-                while (trylock(grid->locks[position.x][position.y]) != 0);
+                while (trylock(&grid->locks[(int)round(position.x)][(int)round(position.y)], 0, 1) != 0);
             #endif
 
             if (grid_is_pos_free(grid, position)) {
                 array[*count] = position;
                 (*count)++;
             }
+            #ifdef OPEN_MP
+                else {
+                    grid->locks[(int)round(position.x)][(int)round(position.y)] = 0;
+                }
+            #endif
         }
     }
     return array;
@@ -307,7 +315,7 @@ Vector2* find_free_pos_nearby(Grid* grid, Vector2 reference) {
                 if (index == i)
                     continue;
                 Vector2 p = free_positions[i];
-                grid->locks[p.x][p.y] = 0;
+                grid->locks[(int)round(p.x)][(int)round(p.y)] = 0;
             }
         #endif
     }
@@ -333,7 +341,7 @@ Vector2* find_n_free_nearby_pos(Grid* grid, Vector2 reference, int max, int* cou
         #ifdef OPEN_MP
             for (int i = 0; i < n; i++) {
                 Vector2 p = free_positions[i];
-                grid->locks[p.x][p.y] = 0;
+                grid->locks[(int)round(p.x)][(int)round(p.y)] = 0;
             }
         #endif
         return array;
@@ -353,7 +361,7 @@ void duplicate_entity(Grid* grid, Entity* entity) {
         new->has_interacted = true;
         grid_insert(grid, new);
         #ifdef OPEN_MP
-            grid->locks[position.x][position.y] = 0;
+            grid->locks[(int)(position->x)][(int)(position->y)] = 0;
         #endif
         memfree(position);
     }
@@ -367,7 +375,7 @@ void generate_antibodies(Grid* grid, Vector2 origin) {
             //assert(grid_is_pos_free(grid, positions[i]));
             grid_insert(grid, create_entity(AB_MOLECOLE, positions[i]));
             #ifdef OPEN_MP
-                grid->locks[positions[i].x][positions[i].y] = 0;
+                grid->locks[(int)(positions[i].x)][(int)(positions[i].y)] = 0;
             #endif
         }
         memfree(positions);
@@ -404,13 +412,18 @@ void diffuse_entity(Grid* grid, Entity* entity) {
     new_position.y += entity->velocity.y * TIME_FACTOR;
     adjust_pos(&new_position); // correct the position
 
+    if (is_matching_pos(new_position, entity->position)) {
+        entity->position = new_position;
+        return;
+    }
+
     #ifdef OPEN_MP
-        while (trylock(grid->locks[new_position.x][new_position.y], 0, 1) != 0);
+        while (trylock(&grid->locks[(int)round(new_position.x)][(int)round(new_position.y)], 0, 1) != 0);
     #endif
 
     if (!grid_is_pos_free(grid, new_position)) {
         #ifdef OPEN_MP
-            grid->locks[new_position.x][new_position.y] = 0;
+            grid->locks[(int)round(new_position.x)][(int)round(new_position.y)] = 0;
         #endif
         /* If the position is not free, try to look for a nearby one. */
         Vector2* pos = find_free_pos_nearby(grid, new_position);
@@ -427,11 +440,11 @@ void diffuse_entity(Grid* grid, Entity* entity) {
 
     entity->position = new_position;
     #ifdef OPEN_MP
-        grid->locks[new_position.x][new_position.y] = 0;
+        grid->locks[(int)round(new_position.x)][(int)round(new_position.y)] = 0;
     #endif
 }
 
-void scan_interactions(Grid* grid, Entity* entity) {
+void process_interactions(Grid* grid, Entity* entity) {
     if (entity->has_interacted)
         return;
 
@@ -464,13 +477,15 @@ void b_cell_interact(Grid* grid, Entity* bcell) {
                     if (entities[i]->status == CS_ACTIVE) {
                         if (!entities[i]->has_interacted && !entities[i]->to_be_removed) {
                             #ifdef OPEN_MP
-                                if (trylock(entities[i]->lock, 0, 1) != 0)
+                                if (trylock(&entities[i]->lock, 0, 1) != 0)
                                     continue;
                             #endif
                             bcell->status = CS_STIMULATED;
                             bcell->has_interacted = true;
                             entities[i]->has_interacted = true;
-                            entities[i]->lock = 0;
+                            #ifdef OPEN_MP
+                                entities[i]->lock = 0;
+                            #endif
                             break;
                         }
                     }
@@ -482,16 +497,18 @@ void b_cell_interact(Grid* grid, Entity* bcell) {
             entities = look_for_nearby_entities(grid, bcell->position, AG_MOLECOLE, &count);
             if (entities != NULL) {
                 for (int i = 0; i < count; i++) {
-                    if (can_entities_bind(bcell, entities[i], true)) {
+                    if (can_entities_bind(bcell, entities[i])) {
                         if (!entities[i]->has_interacted && !entities[i]->to_be_removed) {
                             #ifdef OPEN_MP
-                                if (trylock(entities[i]->lock, 0, 1) != 0)
+                                if (trylock(&entities[i]->lock, 0, 1) != 0)
                                     continue;
                             #endif
                             bcell->status = CS_ACTIVE;
                             bcell->has_interacted = true;
                             entities[i]->has_interacted = true;
-                            entities[i]->lock = 0;
+                            #ifdef OPEN_MP
+                                entities[i]->lock = 0;
+                            #endif
                             break;
                         }
                     }
@@ -531,17 +548,18 @@ void antibody_interact(Grid* grid, Entity* antibody) {
     Entity** antigens = look_for_nearby_entities(grid, antibody->position, AG_MOLECOLE, &count);
     if (antigens != NULL) {
         for (int i = 0; i < count; i++) {
-            if (can_entities_bind(antibody, antigens[i], true)) {
+            if (can_entities_bind(antibody, antigens[i])) {
                 if (!antigens[i]->has_interacted && !antigens[i]->to_be_removed) {
                     #ifdef OPEN_MP
-                        if (trylock(antigens[i]->lock, 0, 1) != 0)
+                        if (trylock(&antigens[i]->lock, 0, 1) != 0)
                             continue;
                     #endif
                     antibody->has_interacted = true;
                     antigens[i]->has_interacted = true;
                     antigens[i]->to_be_removed = true;
-                    antigens[i]->lock = 0;
-                    // grid_remove_type(grid, antigens[i]->position, antigens[i]->type);
+                    #ifdef OPEN_MP
+                        antigens[i]->lock = 0;
+                    #endif
                     break;
                 }
             }

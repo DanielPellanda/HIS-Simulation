@@ -75,24 +75,26 @@ typedef struct
 
     bool has_interacted;
     bool to_be_removed;
-    volatile int lock;
+    double seed;
+    int lock;
 } 
 Entity;
 
 /* Calculates the probability for two receptors to bind. */
-__host__ __device__ double affinity_potential(unsigned char receptor1, unsigned char receptor2);
+__device__ double affinity_potential(unsigned char receptor1, unsigned char receptor2);
+
+__device__ double extract_rand(Entity* entity);
 
 /* Determines whether two different entities can bind
    based on the affinity potential of their receptors. */
-__host__ __device__ bool can_entities_bind(Entity* entity, Entity* entity2, bool specific);
+__device__ bool can_entities_bind(Entity* entity, Entity* entity2);
 
 /* Mutates the receptor of an entity. */
-__host__ __device__ void hypermutation(Entity* entity);
+void hypermutation(Entity* entity);
 
 /* Creates a new entity with the type and position specified as parameters. */
-__host__ __device__ Entity* create_entity(EntityType type, Vector2 position);
+Entity* create_entity(EntityType type, Vector2 position);
 
-/* Returns a string representing the entity type specified. */
-__host__ __device__ char* type_to_string(EntityType type);
+const char* type_to_string(EntityType type);
 
 #endif

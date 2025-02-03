@@ -22,17 +22,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 #include <assert.h>
 #include "cuda-simulation.h"
 #include "cuda-memory.h"
 #include "cuda-grid.h"
 #include "cuda-math.h"
+#include "cuda-memory.h"
+#include "lib/pbPlots.hpp"
+#include "lib/supportLib.hpp"
 
-extern "C" {
-    #include "../lib/pbPlots.h"
-    #include "../lib/supportLib.h"
-    #include "../memory.h"
-}
+using namespace std;
 
 int TIMESTEPS = DEFAULT_TIMESTEPS;
 int B_CELL_NUM = DEFAULT_B_CELLS;
@@ -41,44 +41,37 @@ int AG_MOLECULE_NUM = DEFAULT_AG_MOLECULES;
 
 void time_step(Grid* grid) {
     int count = 0;
-    int gpu_count = 0;
     int cpu_count = 0;
+    int gpu_count = 0;
     int size = grid->total_size;
-
-    /* Initialize seed for random number generator. */
-    curandState* rng;
-    cudaAlloc((void**)&rng, sizeof(curandState));
-    kernel_init_rng<<<(size + BLKDIM-1)/BLKDIM>>>(rng);
-    Grid* d_grid = grid_copy_to_device(grid);
 
     Entity** gpu_entities;                                               // entities with interactions done by the GPU
     Entity** entity_list = (Entity**)memalloc(size * sizeof(Entity*));   // all entities
-    Entity** cpu_entities = (Entity**)memalloc(size * sizeof(Entity*));  // entities with interactions done by the CPU
-    int* gpu_indexes = (int*)memalloc(size * sizeof(int));               // indexes from entity_list for all gpu_entities
+    int* cpu_indexes = (int*)memalloc(size * sizeof(int));               // indexes from entity_list for all cpu_entities
     cudaAlloc((void**)&gpu_entities, size * sizeof(Entity*));
 
+    Grid* d_grid = grid_copy_to_device(grid);
+
     /* Gather all entities from the grid. */
+    kernel_gather_entities<<<1, 1>>>(d_grid, gpu_entities);
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
         EntityBlock** current = &grid->lists[i].first;
         while (*current != NULL) {
             Entity* entity = (*current)->entity;
             assert(entity != NULL);
             entity->has_interacted = false;
-            array[count] = entity;
+            entity_list[count] = entity;
             if (!entity->to_be_removed) {
                 switch (entity->type) {
                     case B_CELL:
                         if (entity->status == CS_STIMULATED) { // duplication handled with the CPU
-                            cpu_entities[cpu_count] = entity;
+                            cpu_indexes[cpu_count] = count;
                             cpu_count++;
                             break;
                         }
                     case T_CELL:
                     case AG_MOLECOLE:
                     case AB_MOLECOLE: // the rest is handled by the GPU
-                        // fill the device grid with pointers referencing device memory
-                        set_device_pointer_with_entity<<<1, 1>>>(&gpu_entities[gpu_count], d_grid, entity->position, entity->type);
-                        gpu_indexes[gpu_count] = count;
                         gpu_count++;
                         break;
                     default:
@@ -89,94 +82,110 @@ void time_step(Grid* grid) {
             count++;
         }
     }
-    cudaCheckError(); // synchronize gpu with cpu
+    cudaCheckError(); // synchronize gpu threads
     assert(count == grid->total_size);
 
     /* Interactions of duplicating B Cells must be done by the CPU. 
        The rest are handled by the GPU. */
-    kernel_scan_interactions<<<(gpu_count + BLKDIM-1)/BLKDIM>>>(d_grid, gpu_entities, gpu_count, BLKDIM);
+    kernel_process_interactions<<<(gpu_count + BLKDIM-1)/BLKDIM, BLKDIM>>>(d_grid, gpu_entities, gpu_count);
     for (int i = 0; i < cpu_count; i++) {
-        if (cpu_entities[i] == NULL)
+        Entity* bcell = entity_list[cpu_indexes[i]];
+        if (bcell == NULL)
             continue;
-        if (cpu_entities[i]->to_be_removed)
-            continue;
-        scan_interactions(grid, cpu_entities[i]);
+
+        bcell->status = CS_INTERNALIZED;
+        bcell->has_interacted = true;
+        hypermutation(bcell);
+        duplicate_entity(grid, bcell);
+        generate_antibodies(grid, bcell->position);
     }
     cudaCheckError(); // synchronize gpu with cpu
 
-    /* Copy all entity edits done by in device memory back into host memory. */
-    for (int i = 0; i < gpu_count; i++) {
-        if (entity_list[gpu_indexes[i]] == NULL)
-            continue;
-        if (entity_list[gpu_indexes[i]]->to_be_removed)
-            continue;
-        cudaCopy(entity_list[gpu_indexes[i]], gpu_entities[i], sizeof(Entity), cudaMemcpyDeviceToHost);
-    }
-    memfree(cpu_entities);
-    memfree(gpu_indexes);
-    cudaFree(gpu_entities);
-    grid_free_device(d_grid);
-
-    /* Copy the new grid into device memory. */
-    d_grid = grid_copy_to_device(grid);
-
-    /* Create a clone of entity_list into device memory and fill it with device memory addresses. */
-    Entity** d_entity_list;
-    cudaAlloc((void**)&d_entity_list, size * sizeof(Entity*));
-    for (int i = 0; i < size; i++) {
-        set_device_pointer_with_entity<<<1, 1>>>(&d_entity_list[i], d_grid, entity_list[i]->position, entity_list[i]->type);
-    }
-    cudaCheckError(); // synchronize gpu threads
-
-    /* Process the entity movement. */
-    kernel_diffuse_entity<<<(size + BLKDIM-1)/BLKDIM>>>(d_grid, d_entity_list, size, BLKDIM, rng);
-    cudaCheckError(); // synchronize gpu with cpu
-
-    /* Remove all entities marked to be deleted and copy in host memory all entities modified by the GPU. */
+    int cpu_i = 0;
+    int gpu_i = 0;
     for (int i = 0; i < size; i++) {
         if (entity_list[i] == NULL)
             continue;
+        if (cpu_indexes[cpu_i] != i) {
+            Entity** gpu_pointer = (Entity**)memalloc(sizeof(Entity*));
+            cudaCopy(gpu_pointer, &gpu_entities[gpu_i], sizeof(Entity*), cudaMemcpyDeviceToHost);
+            cudaCopy(entity_list[i], *gpu_pointer, sizeof(Entity), cudaMemcpyDeviceToHost);
+            memfree(gpu_pointer);
+            gpu_i++;
+        }
+        else {
+            cpu_i++;
+        }
         if (entity_list[i]->to_be_removed) {
             grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
             continue;
         }
-        cudaCopy(entity_list[i], d_entity_list[i], sizeof(Entity), cudaMemcpyDeviceToHost);
+        entity_list[i]->seed = randdouble();
+        /* Process the entity movement. */
+        diffuse_entity(grid, entity_list[i]);
     }
-    
     memfree(entity_list);
-    cudaFree(d_entity_list);
-    cudaFree(rng);
+    memfree(cpu_indexes);
     grid_free_device(d_grid);
+    assert(cpu_i == cpu_count);
+    assert(gpu_i == gpu_count);
 }
 
-__global__ void kernel_init_rng(curandState* rng) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    curand_init(clock(), 1, 1, &rng[index]);
+__device__ int getthreadindex() {
+    return blockIdx.x * blockDim.x + threadIdx.x;
 }
 
-__global__ void kernel_scan_interactions(Grid* grid, Entity** array, int size) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= size)
-        return;
-    if (array[index] == NULL)
-        return;
-    if (array[index]->to_be_removed)
-        return;
-    
-    scan_interactions(grid, array[index]);
+__global__ void kernel_gather_entities(Grid* grid, Entity** gpu_entities) {
+    int gpu_count = 0;
+    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
+        EntityBlock** current = &grid->lists[i].first;
+        while (*current != NULL) {
+            Entity* entity = (*current)->entity;
+            entity->has_interacted = false;
+            if (!entity->to_be_removed) {
+                switch (entity->type) {
+                    case B_CELL:
+                        if (entity->status == CS_STIMULATED) // duplication handled with the CPU
+                            break;
+                    case T_CELL:
+                    case AG_MOLECOLE:
+                    case AB_MOLECOLE: // the rest is handled by the GPU
+                        gpu_entities[gpu_count] = entity;
+                        gpu_count++;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            current = &(*current)->next;
+        }
+    }
 }
 
-__global__ void kernel_diffuse_entity(Grid* grid, Entity** array, int size, curandState* rng) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= size)
+__global__ void kernel_process_interactions(Grid* grid, Entity** array, int size) {
+    int threadidx = getthreadindex();
+    if (threadidx >= size)
         return;
-    if (array[index] == NULL)
+    if (array[threadidx] == NULL)
         return;
-    if (array[index]->to_be_removed)
+    if (array[threadidx]->to_be_removed)
         return;
-    
-    diffuse_entity(grid, array[index], index, rng);
+
+    process_interactions(grid, array[threadidx]);
 }
+
+
+// __global__ void kernel_diffuse_entity(Grid* grid, Entity** array, int size, curandState* rng) {
+//     int threadidx = getthreadindex();
+//     if (threadidx >= size)
+//         return;
+//     if (array[threadidx] == NULL)
+//         return;
+//     if (array[threadidx]->to_be_removed)
+//         return;
+        
+//     diffuse_entity(grid, array[threadidx], rng);
+// }
 
 Grid* generate_grid() {
     int n = 0;
@@ -186,8 +195,8 @@ Grid* generate_grid() {
     for (int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
             Vector2 p = {
-                .x = i,
-                .y = j
+                .x = (float)i,
+                .y = (float)j
             };
             positions[n] = p;
             n++;
@@ -217,8 +226,8 @@ void reinsert_antigens(Grid* grid) {
     for (int i = 0; i < GRID_SIZE; i++) {
         for (int j = 0; j < GRID_SIZE; j++) {
             Vector2 p = {
-                .x = i,
-                .y = j
+                .x = (float)i,
+                .y = (float)j
             };
 
             if (grid_is_pos_free(grid, p)) {
@@ -257,14 +266,11 @@ void plot_graph(Grid* grid, char* name) {
 	settings->height = 400;
 	settings->autoBoundaries = false;
 	settings->autoPadding = true;
-    settings->title = L"Humoral Response";
-    settings->titleLength = wcslen(settings->title);
+    settings->title = toVector(L"Humoral Response");
     settings->xAxisAuto = true;
-    settings->xLabel = L"X";
-    settings->xLabelLength = wcslen(settings->xLabel);
+    settings->xLabel = toVector(L"X");
     settings->yAxisAuto = true;
-    settings->yLabel = L"Y";
-    settings->yLabelLength = wcslen(settings->yLabel);
+    settings->yLabel = toVector(L"Y");
     settings->xMax = GRID_SIZE - 1.0;
     settings->yMax = GRID_SIZE - 1.0;
     settings->xMin = 0.0;
@@ -273,6 +279,8 @@ void plot_graph(Grid* grid, char* name) {
 
     double** xs = (double**)memalloc(grid->total_size*sizeof(double*));
     double** ys = (double**)memalloc(grid->total_size*sizeof(double*));
+    vector<double>** xsv = (vector<double>**)memalloc(grid->total_size*sizeof(vector<double>*));
+    vector<double>** ysv = (vector<double>**)memalloc(grid->total_size*sizeof(vector<double>*));
 	ScatterPlotSeries** series = (ScatterPlotSeries**)memalloc(grid->total_size*sizeof(ScatterPlotSeries*));
     
     int index = 0;
@@ -295,15 +303,15 @@ void plot_graph(Grid* grid, char* name) {
         }
         assert(count == grid->lists[i].size);
 
+        xsv[index] = new vector<double>(xs[index], xs[index]+sizeof(xs[index])*grid->lists[i].size/sizeof(double));
+        ysv[index] = new vector<double>(ys[index], ys[index]+sizeof(ys[index])*grid->lists[i].size/sizeof(double));
+
         series[index] = GetDefaultScatterPlotSeriesSettings();
-        series[index]->xs = xs[index];
-        series[index]->xsLength = grid->lists[i].size;
-	    series[index]->ys = ys[index];
-	    series[index]->ysLength = grid->lists[i].size;
+        series[index]->xs = xsv[index];
+	    series[index]->ys = ysv[index];
         series[index]->linearInterpolation = false;
-        series[index]->pointType = L"dots";
-        series[index]->pointTypeLength = wcslen(series[index]->pointType);
-        switch (i) {
+        series[index]->pointType = toVector(L"dots");
+        switch ((EntityType)i) {
             case B_CELL:
                 series[index]->color = CreateRGBColor(0.0, 1.0, 0.0);     // green
                 break;
@@ -319,36 +327,38 @@ void plot_graph(Grid* grid, char* name) {
             default:
                 break;
         }
+        settings->scatterPlotSeries->push_back(series[index]);
         index++;
     }
-    settings->scatterPlotSeries = series;
-	settings->scatterPlotSeriesLength = index;
 
-    StringReference error = {
-        .stringLength = 0
-    };
+    StringReference* error = CreateStringReferenceLengthValue(0, L' ');
     RGBABitmapImageReference* canvas = CreateRGBABitmapImageReference();
-    bool success = DrawScatterPlotFromSettings(canvas, settings, &error);
+    bool success = DrawScatterPlotFromSettings(canvas, settings, error);
 
     if (!success) {
-        if (error.stringLength > 0) {
-            printf("Graph Error: %ls\n", error.string);
-        }
+        printf("Graph Error: %ls\n", error->string);
+        memfree(error);
         return;
     }
+    memfree(error);
     
-    size_t length;
-	double *pngdata = ConvertToPNG(&length, canvas->image);
-	WriteToFile(pngdata, length, name);
+	vector<double>* pngdata = ConvertToPNG(canvas->image);
+	WriteToFile(pngdata, name);
 	DeleteImage(canvas->image);
 
     for (int i = 0; i < index; i++) {
         memfree(xs[i]);
         memfree(ys[i]);
+        memfree(xsv[i]);
+        memfree(ysv[i]);
+        memfree(series[i]);
     }
     memfree(series);
     memfree(xs);
     memfree(ys);
+    memfree(xsv);
+    memfree(ysv);
+    memfree(pngdata);
 }
 
 void debug_grid(Grid* grid, int step) {
@@ -376,12 +386,17 @@ void check_grid(Grid* grid) {
             assert(is_pos_valid((*current)->entity->position));
 
             Entity* occupant = grid_get(grid, (*current)->entity->position);
-            assert(occupant != NULL);
-            if (occupant != (*current)->entity) {
-                printf("Occupant Entity => Type: %s - Position: [X = %f; Y = %f]\n", type_to_string(i), (*current)->entity->position.x, (*current)->entity->position.y);
-                printf("Occupant Entity => Type: %s - Position: [X = %f; Y = %f]\n", type_to_string(occupant->type), occupant->position.x, occupant->position.y);
+            if (occupant == NULL) {
+                printf("Missing entity => %p Type: %s - Position: [X=%d, Y=%d]\n", (*current)->entity, type_to_string((EntityType)i), (int)round((*current)->entity->position.x), (int)round((*current)->entity->position.y));
+                exit(0);
             }
-            assert(occupant == (*current)->entity);
+            //assert(occupant != NULL);
+            if (occupant != (*current)->entity) {
+                printf("Occupant Entity => %p Type: %s - Position: [X=%d, Y=%d]\n", (*current)->entity, type_to_string((EntityType)i), (int)round((*current)->entity->position.x), (int)round((*current)->entity->position.y));
+                printf("Occupant Entity => %p Type: %s - Position: [X=%d, Y=%d]\n", occupant, type_to_string(occupant->type), (int)round(occupant->position.x), (int)round(occupant->position.y));
+                exit(0);
+            }
+            //assert(occupant == (*current)->entity);
 
             current = &(*current)->next;
             count++;
@@ -397,8 +412,8 @@ void print_grid(Grid* grid) {
         printf("[ ");
         for (int j = 0; j < GRID_SIZE; j++) {
             Vector2 position = {
-                .x = i,
-                .y = j
+                .x = (float)i,
+                .y = (float)j
             };
 
             Entity* entity = grid_get(grid, position);
@@ -429,7 +444,7 @@ void print_grid(Grid* grid) {
 
 void print_element_count(Grid* grid) {
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        printf("%s elements: %d\n", type_to_string(i), grid->lists[i].size);
+        printf("%s elements: %d\n", type_to_string((EntityType)i), grid->lists[i].size);
     }
     printf("\n");
 }
@@ -439,7 +454,7 @@ void print_element_pos(Grid* grid) {
         EntityBlock** current = &grid->lists[i].first;
         while (*current != NULL) {
             EntityBlock** next = &(*current)->next;
-            printf("Type: %s - Position: [X = %f; Y = %f]\n", type_to_string(i), (*current)->entity->position.x, (*current)->entity->position.y);
+            printf("Type: %s - Position: [X = %f; Y = %f]\n", type_to_string((EntityType)i), (*current)->entity->position.x, (*current)->entity->position.y);
             current = next;
         }
     }
