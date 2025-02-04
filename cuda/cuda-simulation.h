@@ -37,6 +37,7 @@
 /* Reinsert all antigens after the completion of 50% of the timesteps. */
 #define REINSERT_AG
 
+/* How many threads per block to use for the simulation. */
 #define BLKDIM 32
 
 #define DEFAULT_TIMESTEPS 20000
@@ -52,6 +53,7 @@ extern int AG_MOLECULE_NUM;
 /* Processes one full time step of the simulation and updates the grid. */
 void time_step(Grid* grid);
 
+/* Get a index that can be used to access the grid from a kernel function. */
 __device__ int getthreadindex();
 
 /* Process entity interactions for every GPU thread. */

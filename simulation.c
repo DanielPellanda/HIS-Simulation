@@ -40,13 +40,13 @@ void time_step(Grid* grid) {
         return;
 
     int size = grid->total_size;
-    /* Check for interactions first. */
+    /* Process any interaction between entities. */
     for (int i = 0; i < size; i++) {
         if (entity_list[i]->type == NONE)
             continue;
         process_interactions(grid, entity_list[i]);
     }
-    /* Process their movement. */
+    /* Process the entities movement. */
     for (int i = 0; i < size; i++) {
         if (entity_list[i]->type == NONE)
             continue;
