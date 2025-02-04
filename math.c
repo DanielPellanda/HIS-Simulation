@@ -36,7 +36,7 @@ double randdouble() {
 }
 
 unsigned char randbyte() {
-    return rand() % UCHAR_MAX;
+    return rand() % (UCHAR_MAX+1);
 }
 
 double langevin(double velocity, double force, double mass) {

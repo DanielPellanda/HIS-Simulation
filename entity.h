@@ -39,6 +39,8 @@
 /* The type of an entity. */
 typedef enum 
 {
+    NONE = -1,   // Empty cell in the grid
+
     // Cells
     B_CELL, // Lymphocyte B
     T_CELL, // Lymphocyte T
@@ -73,11 +75,7 @@ typedef struct
     Vector2 position;
     unsigned char receptor[RECEPTOR_SIZE];
 
-    bool has_interacted;
-    bool to_be_removed;
-    #ifdef OPEN_MP
-        int lock;
-    #endif
+    int has_interacted;
 } 
 Entity;
 
@@ -86,13 +84,13 @@ double affinity_potential(unsigned char receptor1, unsigned char receptor2);
 
 /* Determines whether two different entities can bind
    based on the affinity potential of their receptors. */
-bool can_entities_bind(Entity* entity, Entity* entity2);
+bool can_entities_bind(Entity entity, Entity entity2);
 
 /* Mutates the receptor of an entity. */
 void hypermutation(Entity* entity);
 
 /* Creates a new entity with the type and position specified as parameters. */
-Entity* create_entity(EntityType type, Vector2 position);
+Entity create_entity(EntityType type, Vector2 position);
 
 /* Returns a string representing the entity type specified. */
 char* type_to_string(EntityType type);

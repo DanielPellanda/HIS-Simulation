@@ -31,14 +31,8 @@
    together with the number of each type of entity after each time step. */ 
 //#define DEBUG
 
-/* Print the position of each entity after each time step.*/
-//#define DEBUG_POSITIONS
-
 /* Run a check on the validity of the grid after every time step. */
 //#define ASSERT
-
-/* Terminate the simulation immediately if no antigens can be found. */
-//#define TERMINATE_ON_ZERO_AG
 
 /* Reinsert all antigens after the completion of 50% of the timesteps. */
 #define REINSERT_AG
@@ -60,13 +54,11 @@ void time_step(Grid* grid);
 
 __device__ int getthreadindex();
 
-__global__ void kernel_gather_entities(Grid* grid, Entity** gpu_entities);
-
 /* Process entity interactions for every GPU thread. */
-__global__ void kernel_process_interactions(Grid* grid, Entity** array, int size);
+__global__ void kernel_process_interactions(Grid* grid);
 
 /* Process entity movement for every GPU thread. */
-// __global__ void kernel_diffuse_entity(Grid* grid, Entity** array, int size, curandState* rng);
+__global__ void kernel_diffuse_entity(Grid* grid);
 
 /* Creates the grid and populates it with entities. */
 Grid* generate_grid();
@@ -79,7 +71,7 @@ void reinsert_antigens(Grid* grid);
 void populate_grid(Grid* grid, EntityType type, int n, Vector2* positions, int* length);
 
 /* Creates a PNG image graph with all the entities of the grid */
-void plot_graph(Grid* grid, char* name);
+void plot_graph(Grid* grid, char* name, int timestep);
 
 void debug_grid(Grid* grid, int step);
 
@@ -87,8 +79,6 @@ void check_grid(Grid* grid);
 
 void print_grid(Grid* grid);
 
-void print_element_count(Grid* grid);
-
-void print_element_pos(Grid* grid);
+// void print_element_count(Grid* grid);
 
 #endif

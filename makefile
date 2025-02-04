@@ -4,16 +4,10 @@ FILE=his-simulation
 all: 						${FILE}
 		
 cuda:						cuda-${FILE}
-		
-omp:						omp-${FILE}
-							
+									
 ${FILE}:					main.c simulation.c memory.c grid.c math.c entity.c c/pbPlots.o c/supportLib.o
 							gcc ${CFLAGS} main.c simulation.c memory.c grid.c math.c entity.c pbPlots.o supportLib.o -o ${FILE} -lm
-							rm -f *.o *.png
-							
-omp-${FILE}:				main.c simulation.c memory.c grid.c math.c entity.c c/pbPlots.o c/supportLib.o
-							gcc ${CFLAGS} -fopenmp -DOPEN_MP main.c simulation.c memory.c grid.c math.c entity.c pbPlots.o supportLib.o -o omp-${FILE} -lm
-							rm -f *.o *.png							
+							rm -f *.o *.png					
 
 cuda-${FILE}:				cuda/cuda-main.cu cuda/cuda-simulation.o cuda/cuda-math.o cuda/cuda-memory.o cuda/cuda-entity.o cuda/cuda-grid.o cuda/pbPlots.o cuda/supportLib.o
 							nvcc cuda/cuda-main.cu cuda-simulation.o cuda-math.o cuda-memory.o cuda-entity.o cuda-grid.o pbPlots.o supportLib.o -o cuda-${FILE} -lm
@@ -49,4 +43,4 @@ cuda/supportLib.o:			cuda/lib/supportLib.cpp cuda/lib/supportLib.hpp
 .PHONY:						clean cuda omp
 		
 clean:		
-							rm -f ${FILE} cuda-${FILE} omp-${FILE} *.o *.png
+							rm -f ${FILE} cuda-${FILE} *.o *.png

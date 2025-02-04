@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include "cuda-entity.h"
+#include "cuda-math.h"
 #include "cuda-memory.h"
 #include "cuda-simulation.h"
 
@@ -34,86 +35,61 @@ __device__ double affinity_potential(unsigned char receptor1, unsigned char rece
     return pow(BIND_CHANCE, (dist - BITS_IN_A_BYTE) / (AFFINITY_MIN - BITS_IN_A_BYTE));
 }
 
-__device__ double extract_rand(Entity* entity) {
-    if (entity->seed < 0.0) {
-        entity->seed *= -1;
-    }
-    while (entity->seed > 1.0) {
-        entity->seed /= 10;
-    }
-    double rand = entity->seed;
-    for (int i = 0; i < RECEPTOR_SIZE; i++) {
-        entity->seed *= (double)entity->receptor[i];
-    }
-    return rand;
-}
-
-__device__ bool can_entities_bind(Entity* entity, Entity* entity2) {
+__device__ bool can_entities_bind(Entity* entity, Entity entity2) {
     for (int i = 0; i < RECEPTOR_SIZE; i++) {
         /* Only one pair of receptors needs to bind. */
-        if (extract_rand(entity) < affinity_potential(entity->receptor[i], entity2->receptor[i]))
+        bool result = false;
+        if (device_randdouble(entity->seed) < affinity_potential(entity->receptor[i], entity2.receptor[i]))
+            result = true;
+        entity->seed = device_rand(entity->seed);
+        if (result)
             return true;
     }
     return false;
 }
 
-void hypermutation(Entity* entity) {
-    #ifdef POISSON_MUTATION
-        // Poisson distribution
-
-        /* Choose how many and which bits are going to get changed
-           and store the indexes in an array. */
-        int num_bits = rand() % (BITS_IN_A_BYTE * RECEPTOR_SIZE); // extract bits to change
-        int* positions = (int*)memalloc(num_bits * sizeof(int));
-        for (int i = 0; i < num_bits; i++) {
-            positions[i] = rand() % (BITS_IN_A_BYTE * RECEPTOR_SIZE); // extract index to change
-        }
-
-        /* Invert the value of every bit in the position of each index contained in the array. */
-        for (int i = 0; i < num_bits; i++) {
-            int pos = positions[i] % BITS_IN_A_BYTE;
-            int index = positions[i] / BITS_IN_A_BYTE;
-            bool set = !getbit(entity->receptor[index], pos);
-            setbit(&entity->receptor[index], set, pos);
-        }
-        memfree(positions);
-    #else
-        // Binomial distribution
-        for (int i = 0; i < RECEPTOR_SIZE; i++) {
-            for (int j = 0; j < BITS_IN_A_BYTE; j++) {
-                double random = randdouble();
-                if (random < MUTATION_CHANCE) {
-                    bool set = !getbit(entity->receptor[i], j);
-                    setbit(&entity->receptor[i], set, j);
-                }
+__device__ void hypermutation(Entity* entity) {
+    // Binomial distribution
+    for (int i = 0; i < RECEPTOR_SIZE; i++) {
+        for (int j = 0; j < BITS_IN_A_BYTE; j++) {
+            if (device_randdouble(entity->seed) < MUTATION_CHANCE) {
+                bool set = !getbit(entity->receptor[i], j);
+                setbit(&entity->receptor[i], set, j);
             }
+            entity->seed = device_rand(entity->seed);
         }
-    #endif
+    }
 }
 
-Entity* create_entity(EntityType type, Vector2 position) {
-    Entity* entity = (Entity*)memalloc(sizeof(Entity));
-    entity->type = type;
-    entity->position = position;
-    entity->velocity = vector_zero();
-    entity->has_interacted = true; // begin interactions on the next time step
-    entity->to_be_removed = false;
-    entity->seed = randdouble();
-    for (int i = 0; i < RECEPTOR_SIZE; i++)
-        entity->receptor[i] = randbyte();
+__host__ __device__ Entity create_entity(EntityType type, Vector2 position, int seed) {
+    Entity entity;
+    entity.type = type;
+    entity.position = position;
+    entity.velocity = vector_zero();
+    entity.has_interacted = 1; // begin interactions on the next time step
+    entity.has_moved = 1; // being moving on the next time step
+    entity.just_created = 1;
+    #ifdef __CUDA_ARCH__
+        entity.seed = device_rand(seed); 
+        for (int i = 0; i < RECEPTOR_SIZE; i++)
+            entity.receptor[i] = device_randbyte(entity.seed);
+    #else
+        entity.seed = rand(); 
+        for (int i = 0; i < RECEPTOR_SIZE; i++)
+            entity.receptor[i] = randbyte();
+    #endif
     switch (type) {
         case B_CELL:
-            entity->status = CS_INTERNALIZED;
+            entity.status = CS_INTERNALIZED;
             break;
         default:
-            entity->status = CS_ACTIVE;
+            entity.status = CS_ACTIVE;
             break;
     }
-    entity->lock = 0;
     return entity;
 }
 
-const char* type_to_string(EntityType type) {
+__host__ __device__ const char* type_to_string(EntityType type) {
     switch (type) {
         case B_CELL:
             return "B Cell";

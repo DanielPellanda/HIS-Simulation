@@ -36,13 +36,6 @@ void* memalloc(size_t size);
    This function will assert if the pointer is NULL. */
 void memfree(void* p);
 
-#ifdef OPEN_MP
-   /* Tries to acquire the lock by setting the "lock" pointer passed as reference.
-      If the lock is successful the pointer gets set to "new" and returns his old value.
-      If the lock is unsuccessful the pointer remains of the same value and returns it. */
-   int trylock(int* lock, int old, int new);
-#endif
-
 /* Returns true if inside the byte the bit at the specified position is equal to 1.
    Returns false otherwise. */
 bool getbit(unsigned char byte, int position);

@@ -36,6 +36,18 @@ typedef struct
 } 
 Vector2;
 
+/* Generates a random integer from a seed. */
+__device__ int device_rand(int seed);
+
+/* Generates either true or false randomly. */
+__device__ bool device_randbool(int seed);
+
+/* Generates a random floating point value between 0 and 1. */
+__device__ double device_randdouble(int seed);
+
+/* Generates a byte of random bits. */
+__device__ unsigned char device_randbyte(int seed);
+
 /* Generates either true or false randomly. */
 bool randbool();
 

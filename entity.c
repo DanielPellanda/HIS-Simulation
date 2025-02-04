@@ -33,10 +33,10 @@ double affinity_potential(unsigned char receptor1, unsigned char receptor2) {
     return pow(BIND_CHANCE, (dist - BITS_IN_A_BYTE) / (AFFINITY_MIN - BITS_IN_A_BYTE));
 }
 
-bool can_entities_bind(Entity* entity, Entity* entity2) {
+bool can_entities_bind(Entity entity, Entity entity2) {
     for (int i = 0; i < RECEPTOR_SIZE; i++) {
         /* Only one pair of receptors needs to bind. */
-        if (randdouble() < affinity_potential(entity->receptor[i], entity2->receptor[i]))
+        if (randdouble() < affinity_potential(entity.receptor[i], entity2.receptor[i]))
             return true;
     }
     return false;
@@ -76,21 +76,20 @@ void hypermutation(Entity* entity) {
     #endif
 }
 
-Entity* create_entity(EntityType type, Vector2 position) {
-    Entity* entity = (Entity*)memalloc(sizeof(Entity));
-    entity->type = type;
-    entity->position = position;
-    entity->velocity = vector_zero();
-    entity->has_interacted = true; // begin interactions on the next time step
-    entity->to_be_removed = false;
+Entity create_entity(EntityType type, Vector2 position) {
+    Entity entity;
+    entity.type = type;
+    entity.position = position;
+    entity.velocity = vector_zero();
+    entity.has_interacted = 1; // begin interactions on the next time step
     for (int i = 0; i < RECEPTOR_SIZE; i++)
-        entity->receptor[i] = randbyte();
+        entity.receptor[i] = randbyte();
     switch (type) {
         case B_CELL:
-            entity->status = CS_INTERNALIZED;
+            entity.status = CS_INTERNALIZED;
             break;
         default:
-            entity->status = CS_ACTIVE;
+            entity.status = CS_ACTIVE;
             break;
     }
     return entity;

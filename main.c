@@ -86,11 +86,11 @@ int main(int argc, char *argv[]) {
         if (i % (TIMESTEPS / 4) == 0) {
             sprintf(string, "his-%d-timestep.png", i);
             plot_graph(grid, string);
+            printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
+            i, grid->size[B_CELL], grid->size[T_CELL], grid->size[AG_MOLECOLE], grid->size[AB_MOLECOLE]);
         }
-        printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
-            i, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
         #ifdef TERMINATE_ON_ZERO_AG
-            if (grid->lists[AG_MOLECOLE].size == 0)
+            if (grid->size[AG_MOLECOLE] == 0)
                 break;
         #endif
     }
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     gettimeofday(&end, NULL);
 
     printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
-        TIMESTEPS, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
+        TIMESTEPS, grid->size[B_CELL], grid->size[T_CELL], grid->size[AG_MOLECOLE], grid->size[AB_MOLECOLE]);
 
     int elapsed = (int)((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000);
     printf("Computed %d timesteps in a %dx%d grid. Elapsed time: %d ms\n", TIMESTEPS, GRID_SIZE, GRID_SIZE, elapsed);

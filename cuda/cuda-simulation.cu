@@ -40,152 +40,50 @@ int T_CELL_NUM = DEFAULT_T_CELLS;
 int AG_MOLECULE_NUM = DEFAULT_AG_MOLECULES;
 
 void time_step(Grid* grid) {
-    int count = 0;
-    int cpu_count = 0;
-    int gpu_count = 0;
-    int size = grid->total_size;
+    kernel_process_interactions<<<(GRID_SIZE*GRID_SIZE+BLKDIM-1)/BLKDIM, BLKDIM>>>(grid);
+    cudaCheckError();
 
-    Entity** gpu_entities;                                               // entities with interactions done by the GPU
-    Entity** entity_list = (Entity**)memalloc(size * sizeof(Entity*));   // all entities
-    int* cpu_indexes = (int*)memalloc(size * sizeof(int));               // indexes from entity_list for all cpu_entities
-    cudaAlloc((void**)&gpu_entities, size * sizeof(Entity*));
-
-    Grid* d_grid = grid_copy_to_device(grid);
-
-    /* Gather all entities from the grid. */
-    kernel_gather_entities<<<1, 1>>>(d_grid, gpu_entities);
-    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            Entity* entity = (*current)->entity;
-            assert(entity != NULL);
-            entity->has_interacted = false;
-            entity_list[count] = entity;
-            if (!entity->to_be_removed) {
-                switch (entity->type) {
-                    case B_CELL:
-                        if (entity->status == CS_STIMULATED) { // duplication handled with the CPU
-                            cpu_indexes[cpu_count] = count;
-                            cpu_count++;
-                            break;
-                        }
-                    case T_CELL:
-                    case AG_MOLECOLE:
-                    case AB_MOLECOLE: // the rest is handled by the GPU
-                        gpu_count++;
-                        break;
-                    default:
-                        break;
-                }
-            }
-            current = &(*current)->next;
-            count++;
-        }
-    }
-    cudaCheckError(); // synchronize gpu threads
-    assert(count == grid->total_size);
-
-    /* Interactions of duplicating B Cells must be done by the CPU. 
-       The rest are handled by the GPU. */
-    kernel_process_interactions<<<(gpu_count + BLKDIM-1)/BLKDIM, BLKDIM>>>(d_grid, gpu_entities, gpu_count);
-    for (int i = 0; i < cpu_count; i++) {
-        Entity* bcell = entity_list[cpu_indexes[i]];
-        if (bcell == NULL)
-            continue;
-
-        bcell->status = CS_INTERNALIZED;
-        bcell->has_interacted = true;
-        hypermutation(bcell);
-        duplicate_entity(grid, bcell);
-        generate_antibodies(grid, bcell->position);
-    }
-    cudaCheckError(); // synchronize gpu with cpu
-
-    int cpu_i = 0;
-    int gpu_i = 0;
-    for (int i = 0; i < size; i++) {
-        if (entity_list[i] == NULL)
-            continue;
-        if (cpu_indexes[cpu_i] != i) {
-            Entity** gpu_pointer = (Entity**)memalloc(sizeof(Entity*));
-            cudaCopy(gpu_pointer, &gpu_entities[gpu_i], sizeof(Entity*), cudaMemcpyDeviceToHost);
-            cudaCopy(entity_list[i], *gpu_pointer, sizeof(Entity), cudaMemcpyDeviceToHost);
-            memfree(gpu_pointer);
-            gpu_i++;
-        }
-        else {
-            cpu_i++;
-        }
-        if (entity_list[i]->to_be_removed) {
-            grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
-            continue;
-        }
-        entity_list[i]->seed = randdouble();
-        /* Process the entity movement. */
-        diffuse_entity(grid, entity_list[i]);
-    }
-    memfree(entity_list);
-    memfree(cpu_indexes);
-    grid_free_device(d_grid);
-    assert(cpu_i == cpu_count);
-    assert(gpu_i == gpu_count);
+    kernel_diffuse_entity<<<(GRID_SIZE*GRID_SIZE+BLKDIM-1)/BLKDIM, BLKDIM>>>(grid);
+    cudaCheckError();
 }
 
 __device__ int getthreadindex() {
     return blockIdx.x * blockDim.x + threadIdx.x;
 }
 
-__global__ void kernel_gather_entities(Grid* grid, Entity** gpu_entities) {
-    int gpu_count = 0;
-    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            Entity* entity = (*current)->entity;
-            entity->has_interacted = false;
-            if (!entity->to_be_removed) {
-                switch (entity->type) {
-                    case B_CELL:
-                        if (entity->status == CS_STIMULATED) // duplication handled with the CPU
-                            break;
-                    case T_CELL:
-                    case AG_MOLECOLE:
-                    case AB_MOLECOLE: // the rest is handled by the GPU
-                        gpu_entities[gpu_count] = entity;
-                        gpu_count++;
-                        break;
-                    default:
-                        break;
-                }
-            }
-            current = &(*current)->next;
-        }
-    }
-}
-
-__global__ void kernel_process_interactions(Grid* grid, Entity** array, int size) {
+__global__ void kernel_process_interactions(Grid* grid) {
     int threadidx = getthreadindex();
-    if (threadidx >= size)
+    if (threadidx >= GRID_SIZE * GRID_SIZE)
         return;
-    if (array[threadidx] == NULL)
+    if (grid->entities[threadidx].type == NONE)
         return;
-    if (array[threadidx]->to_be_removed)
+    if (grid->entities[threadidx].just_created)
         return;
-
-    process_interactions(grid, array[threadidx]);
+    
+    grid->entities[threadidx].seed = device_rand(grid->seed);
+    process_interactions(grid, &grid->entities[threadidx]);
+    grid->entities[threadidx].has_moved = 0;
 }
 
 
-// __global__ void kernel_diffuse_entity(Grid* grid, Entity** array, int size, curandState* rng) {
-//     int threadidx = getthreadindex();
-//     if (threadidx >= size)
-//         return;
-//     if (array[threadidx] == NULL)
-//         return;
-//     if (array[threadidx]->to_be_removed)
-//         return;
-        
-//     diffuse_entity(grid, array[threadidx], rng);
-// }
+__global__ void kernel_diffuse_entity(Grid* grid) {
+    int threadidx = getthreadindex();
+    if (threadidx >= GRID_SIZE * GRID_SIZE)
+        return;
+    if (grid->entities[threadidx].type == NONE)
+        return;
+    if (grid->entities[threadidx].just_created) {
+        grid->entities[threadidx].just_created = 0;
+        grid->entities[threadidx].has_interacted = 0;
+        return;
+    }
+    
+    grid->entities[threadidx].seed = device_rand(grid->seed);
+    if (atomicCAS(&grid->entities[threadidx].has_moved, 0, 1) == 0) {
+        diffuse_entity(grid, &grid->entities[threadidx]);
+    }
+    grid->entities[threadidx].has_interacted = 0;
+}
 
 Grid* generate_grid() {
     int n = 0;
@@ -256,11 +154,15 @@ void populate_grid(Grid* grid, EntityType type, int n, Vector2* positions, int* 
         positions[index] = positions[*length - 1];
         (*length)--;
 
-        grid_insert(grid, create_entity(type, p));
+        Entity entity = create_entity(type, p, rand());
+        entity.has_interacted = 0;
+        entity.has_moved = 0;
+        entity.just_created = 0;
+        grid_insert(grid, entity);
     }
 }
 
-void plot_graph(Grid* grid, char* name) {
+void plot_graph(Grid* grid, char* name, int timestep) {
     ScatterPlotSettings* settings = GetDefaultScatterPlotSettings();
 	settings->width = 600;
 	settings->height = 400;
@@ -277,34 +179,51 @@ void plot_graph(Grid* grid, char* name) {
     settings->yMin = 0.0;
     settings->showGrid = false;
 
-    double** xs = (double**)memalloc(grid->total_size*sizeof(double*));
-    double** ys = (double**)memalloc(grid->total_size*sizeof(double*));
-    vector<double>** xsv = (vector<double>**)memalloc(grid->total_size*sizeof(vector<double>*));
-    vector<double>** ysv = (vector<double>**)memalloc(grid->total_size*sizeof(vector<double>*));
-	ScatterPlotSeries** series = (ScatterPlotSeries**)memalloc(grid->total_size*sizeof(ScatterPlotSeries*));
+    int total_size = 0;
+    int size[MAX_ENTITYTYPE];
+    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
+        size[i] = 0;
+    }
+
+    for (int j = 0; j < GRID_SIZE; j++) {
+        for (int k = 0; k < GRID_SIZE; k++) {
+            if (grid->entities[j*GRID_SIZE+k].type != NONE) {
+                size[grid->entities[j*GRID_SIZE+k].type]++;
+                total_size++;
+            }
+        }
+    }
+    printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
+        timestep, size[B_CELL], size[T_CELL], size[AG_MOLECOLE], size[AB_MOLECOLE]);
+
+    double** xs = (double**)memalloc(total_size*sizeof(double*));
+    double** ys = (double**)memalloc(total_size*sizeof(double*));
+    vector<double>** xsv = (vector<double>**)memalloc(total_size*sizeof(vector<double>*));
+    vector<double>** ysv = (vector<double>**)memalloc(total_size*sizeof(vector<double>*));
+	ScatterPlotSeries** series = (ScatterPlotSeries**)memalloc(total_size*sizeof(ScatterPlotSeries*));
     
     int index = 0;
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        if (grid->lists[i].size == 0)
+        if (size[i] == 0)
             continue;
 
+        xs[index] = (double*)memalloc(size[i] * sizeof(double));
+        ys[index] = (double*)memalloc(size[i] * sizeof(double));
+
         int count = 0;
-        size_t size = grid->lists[i].size * sizeof(double);
-
-        xs[index] = (double*)memalloc(size);
-        ys[index] = (double*)memalloc(size);
-
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            xs[index][count] = (*current)->entity->position.x;
-            ys[index][count] = (*current)->entity->position.y;
-            current = &(*current)->next;
-            count++;
+        for (int j = 0; j < GRID_SIZE; j++) {
+            for (int k = 0; k < GRID_SIZE; k++) {
+                if (grid->entities[j*GRID_SIZE+k].type == i) {
+                    xs[index][count] = grid->entities[j*GRID_SIZE+k].position.x;
+                    ys[index][count] = grid->entities[j*GRID_SIZE+k].position.y;
+                    count++;
+                }
+            }
         }
-        assert(count == grid->lists[i].size);
+        assert(count == size[i]);
 
-        xsv[index] = new vector<double>(xs[index], xs[index]+sizeof(xs[index])*grid->lists[i].size/sizeof(double));
-        ysv[index] = new vector<double>(ys[index], ys[index]+sizeof(ys[index])*grid->lists[i].size/sizeof(double));
+        xsv[index] = new vector<double>(xs[index], xs[index]+sizeof(xs[index])*count/sizeof(double));
+        ysv[index] = new vector<double>(ys[index], ys[index]+sizeof(ys[index])*count/sizeof(double));
 
         series[index] = GetDefaultScatterPlotSeriesSettings();
         series[index]->xs = xsv[index];
@@ -336,7 +255,11 @@ void plot_graph(Grid* grid, char* name) {
     bool success = DrawScatterPlotFromSettings(canvas, settings, error);
 
     if (!success) {
-        printf("Graph Error: %ls\n", error->string);
+        cerr << "Graph Error: ";
+		for(int i = 0; i < error->string->size(); i++){
+			wcerr << error->string->at(i);
+		}
+		cerr << endl;
         memfree(error);
         return;
     }
@@ -363,11 +286,8 @@ void plot_graph(Grid* grid, char* name) {
 
 void debug_grid(Grid* grid, int step) {
     #ifdef DEBUG
-        print_grid(grid);
-        print_element_count(grid);
-        #ifdef DEBUG_POSITIONS
-            print_element_pos(grid);
-        #endif
+        // print_grid(grid);
+        // print_element_count(grid);
         printf("Time Step %d\n\n", step + 1);
     #endif
     #ifdef ASSERT
@@ -376,35 +296,22 @@ void debug_grid(Grid* grid, int step) {
 }
 
 void check_grid(Grid* grid) {
-    int count = 0;
+    // int count = 0;
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        int list_count = 0;
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            assert((*current)->entity != NULL);
-            assert((*current)->entity->type == i);
-            assert(is_pos_valid((*current)->entity->position));
-
-            Entity* occupant = grid_get(grid, (*current)->entity->position);
-            if (occupant == NULL) {
-                printf("Missing entity => %p Type: %s - Position: [X=%d, Y=%d]\n", (*current)->entity, type_to_string((EntityType)i), (int)round((*current)->entity->position.x), (int)round((*current)->entity->position.y));
-                exit(0);
+        // int list_count = 0;
+        for (int j = 0; j < GRID_SIZE; j++) {
+            for (int k = 0; k < GRID_SIZE; k++) {
+                Entity entity = grid->entities[j*GRID_SIZE+k];
+                if (entity.type == i) {
+                    assert((int)round(entity.position.x) == j && (int)round(entity.position.y) == k);
+                    // count++;
+                    // list_count++;
+                }
             }
-            //assert(occupant != NULL);
-            if (occupant != (*current)->entity) {
-                printf("Occupant Entity => %p Type: %s - Position: [X=%d, Y=%d]\n", (*current)->entity, type_to_string((EntityType)i), (int)round((*current)->entity->position.x), (int)round((*current)->entity->position.y));
-                printf("Occupant Entity => %p Type: %s - Position: [X=%d, Y=%d]\n", occupant, type_to_string(occupant->type), (int)round(occupant->position.x), (int)round(occupant->position.y));
-                exit(0);
-            }
-            //assert(occupant == (*current)->entity);
-
-            current = &(*current)->next;
-            count++;
-            list_count++;
         }
-        assert(grid->lists[i].size == list_count);
+        // assert(grid->size[i] == list_count);
     }
-    assert(grid->total_size == count);
+    // assert(grid->total_size == count);
 }
 
 void print_grid(Grid* grid) {
@@ -416,9 +323,9 @@ void print_grid(Grid* grid) {
                 .y = (float)j
             };
 
-            Entity* entity = grid_get(grid, position);
-            if (entity != NULL) {
-                switch (entity->type) {
+            Entity entity = grid_get(grid, position);
+            if (entity.type != NONE) {
+                switch (entity.type) {
                     case B_CELL:
                         printf("B ");
                         continue;
@@ -442,21 +349,9 @@ void print_grid(Grid* grid) {
     printf("\n");
 }
 
-void print_element_count(Grid* grid) {
-    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        printf("%s elements: %d\n", type_to_string((EntityType)i), grid->lists[i].size);
-    }
-    printf("\n");
-}
-
-void print_element_pos(Grid* grid) {
-    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            EntityBlock** next = &(*current)->next;
-            printf("Type: %s - Position: [X = %f; Y = %f]\n", type_to_string((EntityType)i), (*current)->entity->position.x, (*current)->entity->position.y);
-            current = next;
-        }
-    }
-    printf("\n");
-}
+// void print_element_count(Grid* grid) {
+//     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
+//         printf("%s elements: %d\n", type_to_string(i), grid->size[i]);
+//     }
+//     printf("\n");
+// }

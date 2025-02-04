@@ -31,11 +31,8 @@
    together with the number of each type of entity after each time step. */ 
 //#define DEBUG
 
-/* Print the position of each entity after each time step.*/
-//#define DEBUG_POSITIONS
-
 /* Run a check on the validity of the grid after every time step. */
-#define ASSERT
+//#define ASSERT
 
 /* Terminate the simulation immediately if no antigens can be found. */
 //#define TERMINATE_ON_ZERO_AG
@@ -55,11 +52,6 @@ extern int AG_MOLECULE_NUM;
 
 /* Processes one full time step of the simulation and updates the grid. */
 void time_step(Grid* grid);
-
-#ifdef OPEN_MP
-   /* Processes one full time step of the simulation in parallel execution using OpenMP and updates the grid. */
-   void omp_time_step(Grid* grid);
-#endif
 
 /* Generates the order of entities that will be processed during the time step. */
 Entity** generate_order(Grid* grid);
@@ -84,7 +76,5 @@ void check_grid(Grid* grid);
 void print_grid(Grid* grid);
 
 void print_element_count(Grid* grid);
-
-void print_element_pos(Grid* grid);
 
 #endif

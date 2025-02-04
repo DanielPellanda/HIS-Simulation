@@ -28,77 +28,32 @@
 #include "simulation.h"
 #include "memory.h"
 
-#ifdef OPEN_MP 
-    #include <omp.h>
-#endif
-
 int TIMESTEPS = DEFAULT_TIMESTEPS;
 int B_CELL_NUM = DEFAULT_B_CELLS;
 int T_CELL_NUM = DEFAULT_T_CELLS;
 int AG_MOLECULE_NUM = DEFAULT_AG_MOLECULES;
 
 void time_step(Grid* grid) {
-    #ifdef OPEN_MP
-        omp_time_step(grid);
-    #else
-        /* Generate the process order of each entity. */
-        Entity** entity_list = generate_order(grid);
-        if (entity_list == NULL)
-            return;
+    /* Generate the process order of each entity. */
+    Entity** entity_list = generate_order(grid);
+    if (entity_list == NULL)
+        return;
 
-        int size = grid->total_size;
-        /* Check for interactions first. */
-        for (int i = 0; i < size; i++) {
-            if (entity_list[i] == NULL)
-                continue;
-            if (entity_list[i]->to_be_removed)
-                continue;
-            process_interactions(grid, entity_list[i]);
-        }
-        /* Process their movement. */
-        for (int i = 0; i < size; i++) {
-            if (entity_list[i] == NULL)
-                continue;
-            if (entity_list[i]->to_be_removed) {
-                grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
-                continue;
-            }
-            diffuse_entity(grid, entity_list[i]);
-        }
-        memfree(entity_list);
-    #endif
-}
-
-#ifdef OPEN_MP
-    void omp_time_step(Grid* grid) {
-        Entity** entity_list = grid_get_all(grid);
-        if (entity_list == NULL)
-            return;
-
-        int size = grid->total_size;
-        /* Check for interactions first. */
-        #pragma omp parallel for default(shared)
-            for (int i = 0; i < size; i++) {
-                if (entity_list[i] == NULL)
-                    continue;
-                if (entity_list[i]->to_be_removed)
-                    continue;
-                process_interactions(grid, entity_list[i]);
-            }
-        /* Process their movement. */
-        #pragma omp parallel for default(shared)
-            for (int i = 0; i < size; i++) {
-                if (entity_list[i] == NULL)
-                    continue;
-                if (entity_list[i]->to_be_removed) {
-                    grid_remove_type(grid, entity_list[i]->position, entity_list[i]->type);
-                    continue;
-                }
-                diffuse_entity(grid, entity_list[i]);
-            }
-        memfree(entity_list);
+    int size = grid->total_size;
+    /* Check for interactions first. */
+    for (int i = 0; i < size; i++) {
+        if (entity_list[i]->type == NONE)
+            continue;
+        process_interactions(grid, entity_list[i]);
     }
-#endif
+    /* Process their movement. */
+    for (int i = 0; i < size; i++) {
+        if (entity_list[i]->type == NONE)
+            continue;
+        diffuse_entity(grid, entity_list[i]);
+    }
+    memfree(entity_list);
+}
 
 Entity** generate_order(Grid* grid) {
     Entity** array = grid_get_all(grid);
@@ -108,7 +63,6 @@ Entity** generate_order(Grid* grid) {
     if (grid->total_size > 0) {
         /* Shuffle the array. */
         for (int i = 0; i < grid->total_size-1; i++) {
-            assert(array[i] != NULL);
             int j = i + rand() / (RAND_MAX / (grid->total_size - i) + 1);
             Entity* tmp = array[j];
             array[j] = array[i];
@@ -217,29 +171,31 @@ void plot_graph(Grid* grid, char* name) {
     
     int index = 0;
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        if (grid->lists[i].size == 0)
+        if (grid->size[i] == 0)
             continue;
 
         int count = 0;
-        size_t size = grid->lists[i].size * sizeof(double);
+        size_t size = grid->size[i] * sizeof(double);
 
         xs[index] = (double*)memalloc(size);
         ys[index] = (double*)memalloc(size);
 
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            xs[index][count] = (*current)->entity->position.x;
-            ys[index][count] = (*current)->entity->position.y;
-            current = &(*current)->next;
-            count++;
+        for (int j = 0; j < GRID_SIZE; j++) {
+            for (int k = 0; k < GRID_SIZE; k++) {
+                if (grid->entities[j][k].type == i) {
+                    xs[index][count] = grid->entities[j][k].position.x;
+                    ys[index][count] = grid->entities[j][k].position.y;
+                    count++;
+                }
+            }
         }
-        assert(count == grid->lists[i].size);
+        assert(count == grid->size[i]);
 
         series[index] = GetDefaultScatterPlotSeriesSettings();
         series[index]->xs = xs[index];
-        series[index]->xsLength = grid->lists[i].size;
+        series[index]->xsLength = grid->size[i];
 	    series[index]->ys = ys[index];
-	    series[index]->ysLength = grid->lists[i].size;
+	    series[index]->ysLength = grid->size[i];
         series[index]->linearInterpolation = false;
         series[index]->pointType = L"dots";
         series[index]->pointTypeLength = wcslen(series[index]->pointType);
@@ -294,11 +250,8 @@ void plot_graph(Grid* grid, char* name) {
 
 void debug_grid(Grid* grid, int step) {
     #ifdef DEBUG
-        print_grid(grid);
+        //print_grid(grid);
         print_element_count(grid);
-        #ifdef DEBUG_POSITIONS
-            print_element_pos(grid);
-        #endif
         printf("Time Step %d\n\n", step + 1);
     #endif
     #ifdef ASSERT
@@ -310,25 +263,17 @@ void check_grid(Grid* grid) {
     int count = 0;
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
         int list_count = 0;
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            assert((*current)->entity != NULL);
-            assert((*current)->entity->type == i);
-            assert(is_pos_valid((*current)->entity->position));
-
-            Entity* occupant = grid_get(grid, (*current)->entity->position);
-            assert(occupant != NULL);
-            if (occupant != (*current)->entity) {
-                printf("Occupant Entity => Type: %s - Position: [X = %f; Y = %f]\n", type_to_string(i), (*current)->entity->position.x, (*current)->entity->position.y);
-                printf("Occupant Entity => Type: %s - Position: [X = %f; Y = %f]\n", type_to_string(occupant->type), occupant->position.x, occupant->position.y);
+        for (int j = 0; j < GRID_SIZE; j++) {
+            for (int k = 0; k < GRID_SIZE; k++) {
+                Entity entity = grid->entities[j][k];
+                if (entity.type == i) {
+                    assert((int)round(entity.position.x) == j && (int)round(entity.position.y) == k);
+                    count++;
+                    list_count++;
+                }
             }
-            assert(occupant == (*current)->entity);
-
-            current = &(*current)->next;
-            count++;
-            list_count++;
         }
-        assert(grid->lists[i].size == list_count);
+        assert(grid->size[i] == list_count);
     }
     assert(grid->total_size == count);
 }
@@ -342,9 +287,9 @@ void print_grid(Grid* grid) {
                 .y = j
             };
 
-            Entity* entity = grid_get(grid, position);
-            if (entity != NULL) {
-                switch (entity->type) {
+            Entity entity = grid_get(grid, position);
+            if (entity.type != NONE) {
+                switch (entity.type) {
                     case B_CELL:
                         printf("B ");
                         continue;
@@ -370,19 +315,7 @@ void print_grid(Grid* grid) {
 
 void print_element_count(Grid* grid) {
     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        printf("%s elements: %d\n", type_to_string(i), grid->lists[i].size);
-    }
-    printf("\n");
-}
-
-void print_element_pos(Grid* grid) {
-    for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-        EntityBlock** current = &grid->lists[i].first;
-        while (*current != NULL) {
-            EntityBlock** next = &(*current)->next;
-            printf("Type: %s - Position: [X = %f; Y = %f]\n", type_to_string(i), (*current)->entity->position.x, (*current)->entity->position.y);
-            current = next;
-        }
+        printf("%s elements: %d\n", type_to_string(i), grid->size[i]);
     }
     printf("\n");
 }

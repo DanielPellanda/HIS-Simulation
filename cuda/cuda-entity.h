@@ -27,8 +27,6 @@
 #include <stdbool.h>
 #include "cuda-math.h"
 
-#define POISSON_MUTATION
-
 #define RECEPTOR_SIZE 2
 #define MUTATION_CHANCE 0.5
 #define AFFINITY_MIN 5
@@ -39,6 +37,8 @@
 /* The type of an entity. */
 typedef enum 
 {
+    NONE = -1, // Empty cell in the grid
+
     // Cells
     B_CELL, // Lymphocyte B
     T_CELL, // Lymphocyte T
@@ -73,28 +73,26 @@ typedef struct
     Vector2 position;
     unsigned char receptor[RECEPTOR_SIZE];
 
-    bool has_interacted;
-    bool to_be_removed;
+    int has_interacted;
+    int has_moved;
+    int just_created;
     double seed;
-    int lock;
 } 
 Entity;
 
 /* Calculates the probability for two receptors to bind. */
 __device__ double affinity_potential(unsigned char receptor1, unsigned char receptor2);
 
-__device__ double extract_rand(Entity* entity);
-
 /* Determines whether two different entities can bind
    based on the affinity potential of their receptors. */
-__device__ bool can_entities_bind(Entity* entity, Entity* entity2);
+__device__ bool can_entities_bind(Entity* entity, Entity entity2);
 
 /* Mutates the receptor of an entity. */
-void hypermutation(Entity* entity);
+__device__ void hypermutation(Entity* entity);
 
 /* Creates a new entity with the type and position specified as parameters. */
-Entity* create_entity(EntityType type, Vector2 position);
+__host__ __device__ Entity create_entity(EntityType type, Vector2 position, int seed);
 
-const char* type_to_string(EntityType type);
+__host__ __device__ const char* type_to_string(EntityType type);
 
 #endif

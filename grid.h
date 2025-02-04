@@ -24,66 +24,25 @@
 
 #include "entity.h"
 
-#define FAST_GRID_SEARCH
-
 #define DEFAULT_GRID_SIZE 1000
 
 extern int GRID_SIZE;
 
-/* Defines an element in a list of entities. */
-typedef struct Block
-{
-   Entity* entity;
-   struct Block* next;
-}
-EntityBlock;
-
-/* A list of entities */
-typedef struct 
-{
-   int size;
-   EntityBlock* first;
-}
-EntityList;
-
 /* A grid containing a list of each type of entity */
 typedef struct
 {
+   Entity** entities;
    int total_size;
-   EntityList lists[MAX_ENTITYTYPE];
-   #ifdef FAST_GRID_SEARCH
-      Entity*** entities;
-   #endif
-   #ifdef OPEN_MP
-      int** locks;
-   #endif
+   int size[MAX_ENTITYTYPE];
 }
 Grid;
 
-/* Gets the entity with the given position from the list. 
-   Returns NULL if there are no entities in that position. */
-Entity* list_get(EntityList* list, Vector2 position);
-
-/* Inserts an entity inside the list. */
-void list_insert(EntityList* list, Entity* entity);
-
-/* Removes an entity in the given position from the list.
-   Returns true if an entity was deleted, false otherwise. */
-bool list_remove(EntityList* list, Vector2 position);
-
-/* Removes all entities from the list. */
-void list_clear(EntityList* list);
-
 /* Inserts an entity inside the grid. */
-void grid_insert(Grid* grid, Entity* entity);
+void grid_insert(Grid* grid, Entity entity);
 
 /* Removes an entity in the given position from the grid.
    Returns true if an entity was deleted, false otherwise. */
 bool grid_remove(Grid* grid, Vector2 position);
-
-/* Removes an entity of a specific type in the given position from the grid.
-   Returns true if an entity was deleted, false otherwise. */
-bool grid_remove_type(Grid* grid, Vector2 position, EntityType type);
 
 /* Removes all entities and frees the grid. */
 void grid_free(Grid* grid);
@@ -93,13 +52,9 @@ Grid* grid_init();
 
 /* Gets the entity with the given position from the grid. 
    Returns NULL if there are no entities in that position. */
-Entity* grid_get(Grid* grid, Vector2 position);
+Entity grid_get(Grid* grid, Vector2 position);
 
-/* Gets the entity of a specific type with the given position from the grid. 
-   Returns NULL if there are no entities in that position. */
-Entity* grid_get_type(Grid* grid, Vector2 position, EntityType type);
-
-/* Returns an array of all entities contained inside the grid. */
+/* Gets an array with all the entities of the grid. */
 Entity** grid_get_all(Grid* grid);
 
 /* Returns true if the given position is not occupied by any entity.
@@ -127,11 +82,11 @@ Vector2* find_n_free_nearby_pos(Grid* grid, Vector2 reference, int n, int* count
 
 /* Clones the specified entity in the nearest free position.
    If no available position can be found, the entity will not get duplicated. */
-void duplicate_entity(Grid* grid, Entity* entity);
+void duplicate_entity(Grid* grid, Entity entity);
 
 /* Generates antibodies in the free positions found around the origin position specified.
    The number of antibodies generated is defined by AB_CREATED_PER_CELL. */
-void generate_antibodies(Grid* grid, Vector2 origin);
+void generate_antibodies(Grid* grid, Entity cell);
 
 /* Process one movement step of the specified entity inside the grid. */
 void diffuse_entity(Grid* grid, Entity* entity);
@@ -143,7 +98,7 @@ void process_interactions(Grid* grid, Entity* entity);
 void b_cell_interact(Grid* grid, Entity* bcell);
 
 /* Process interactions for T_CELL type entities. */
-void t_cell_interact(Grid* grid, Entity* tcell);
+// void t_cell_interact(Grid* grid, Entity* tcell);
 
 /* Process interactions for AB_MOLECOLE type entities. */
 void antibody_interact(Grid* grid, Entity* antibody);

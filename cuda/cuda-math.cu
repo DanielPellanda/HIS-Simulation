@@ -27,6 +27,29 @@
 #include "cuda-math.h"
 #include "cuda-memory.h"
 
+__device__ int device_rand(int seed) {
+    long x = seed;
+    x ^= (x << 21);
+    x ^= (x >> 35);
+    x ^= (x << 4);
+    if (x < 0)
+        x *= -1;
+    int finalnum = (int)(x % RAND_MAX);
+    return finalnum;
+}
+
+__device__ bool device_randbool(int seed) {
+    return device_rand(seed) % 2;
+}
+
+__device__ double device_randdouble(int seed) {
+    return (double)device_rand(seed) / (double)RAND_MAX;
+}
+
+__device__ unsigned char device_randbyte(int seed) {
+    return device_rand(seed) % (UCHAR_MAX+1);
+}
+
 bool randbool() {
     return rand() % 2;
 }
@@ -36,7 +59,7 @@ double randdouble() {
 }
 
 unsigned char randbyte() {
-    return rand() % UCHAR_MAX;
+    return rand() % (UCHAR_MAX+1);
 }
 
 __host__ __device__ double langevin(double velocity, double force, double mass) {

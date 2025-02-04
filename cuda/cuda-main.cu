@@ -66,34 +66,45 @@ int main(int argc, char *argv[]) {
     gettimeofday(&start, NULL);    
 
     Grid* grid = generate_grid();
+    grid->seed = rand();
     sprintf(string, "his-0-timestep.png");
-    plot_graph(grid, string);
+    plot_graph(grid, string, 0);
     debug_grid(grid, 0);
 
+    Grid* d_grid;
+    cudaAlloc((void**)&d_grid, sizeof(Grid));
+    cudaCopy(d_grid, grid, sizeof(Grid), cudaMemcpyHostToDevice);
+
     for (int i = 0; i < TIMESTEPS; i++) {
-        time_step(grid);
+        time_step(d_grid);
         #ifdef REINSERT_AG
             if (i % (TIMESTEPS / 2) == 0 && i > 0) {
+                cudaCopy(grid, d_grid, sizeof(Grid), cudaMemcpyDeviceToHost);
                 reinsert_antigens(grid);
+                cudaCopy(d_grid, grid, sizeof(Grid), cudaMemcpyHostToDevice);
             }
         #endif
         if (i % (TIMESTEPS / 4) == 0) {
             if (i > 0) {
+                cudaCopy(grid, d_grid, sizeof(Grid), cudaMemcpyDeviceToHost);
                 sprintf(string, "his-%d-timestep.png", i);
-                plot_graph(grid, string);
+                plot_graph(grid, string, i);
             }
-            printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
-                i, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
+            // printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
+            //     i, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
         }
-        debug_grid(grid, i);
+        //debug_grid(grid, i);
     }
 
-    sprintf(string, "his-%d-timestep.png", TIMESTEPS);
-    plot_graph(grid, string);
-    gettimeofday(&end, NULL);
+    cudaCopy(grid, d_grid, sizeof(Grid), cudaMemcpyDeviceToHost);
+    cudaFree(d_grid);
 
-    printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
-        TIMESTEPS, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
+    sprintf(string, "his-%d-timestep.png", TIMESTEPS);
+    plot_graph(grid, string, TIMESTEPS);
+    gettimeofday(&end, NULL);    
+
+    // printf("Timestep %d: B-Cells=%d - T-Cells=%d - Antigens=%d - Antibodies=%d\n", 
+    //     TIMESTEPS, grid->lists[B_CELL].size, grid->lists[T_CELL].size, grid->lists[AG_MOLECOLE].size, grid->lists[AB_MOLECOLE].size);
 
     int elapsed = (int)((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000);
     printf("Computed %d timesteps in a %dx%d grid. Elapsed time: %d ms\n", TIMESTEPS, GRID_SIZE, GRID_SIZE, elapsed);
