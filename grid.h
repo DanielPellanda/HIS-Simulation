@@ -28,7 +28,7 @@
 
 extern int GRID_SIZE;
 
-/* A grid containing a list of each type of entity */
+/* A grid containing all entities of the system. */
 typedef struct
 {
    Entity** entities;

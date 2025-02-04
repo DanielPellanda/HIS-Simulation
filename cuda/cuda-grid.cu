@@ -163,6 +163,7 @@ __host__ __device__ bool grid_is_pos_free(Grid* grid, Vector2 position) {
 // }
 
 __device__ void duplicate_entity(Grid* grid, Entity entity) {
+    /* Get the number of the free positions. */
     int num_free = 0;
     Vector2 reference = entity.position;
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
@@ -183,11 +184,12 @@ __device__ void duplicate_entity(Grid* grid, Entity entity) {
         }
     }
 
+    /* There are no free positions to duplicate this entity, let's bail. */
     if (num_free == 0)
         return;
 
+    /* Extract a random index to decide which position will be chosen. */
     int rand = device_rand(&grid->seed) % num_free;
-
     int freecount = 0;
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
         for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
@@ -202,6 +204,7 @@ __device__ void duplicate_entity(Grid* grid, Entity entity) {
                 continue;
 
             if (grid_is_pos_free(grid, position)) {
+                /* Check if the current index is the chosen one. */
                 if (rand == freecount) {
                     Entity new_entity = create_entity(entity.type, position, device_rand(&grid->seed));
                     for (int i = 0; i < RECEPTOR_SIZE; i++)
@@ -221,6 +224,7 @@ __device__ void duplicate_entity(Grid* grid, Entity entity) {
 }
 
 __device__ void generate_antibodies(Grid* grid, Entity cell) {
+    /* Get the number of the free positions. */
     int num_free = 0;
     Vector2 reference = cell.position;
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
@@ -241,9 +245,11 @@ __device__ void generate_antibodies(Grid* grid, Entity cell) {
         }
     }
 
+    /* There are no free positions to generate some new antibodies, let's bail. */
     if (num_free == 0)
         return;
 
+    /* Extract random indexes to decide where to generate the antibodies. */
     int to_create = num_free < AB_CREATED_PER_CELL ? num_free : AB_CREATED_PER_CELL;
     int indexes[AB_CREATED_PER_CELL];
     for (int i = 0; i < AB_CREATED_PER_CELL; i++) {
@@ -270,6 +276,7 @@ __device__ void generate_antibodies(Grid* grid, Entity cell) {
 
             if (grid_is_pos_free(grid, position)) {
                 int found = 0;
+                /* Check if the current index is one of chosen ones. */
                 for (int i = 0; i < AB_CREATED_PER_CELL; i++) {
                     if (indexes[i] == freecount) {
                         found = 1;
@@ -331,6 +338,9 @@ __device__ void diffuse_entity(Grid* grid, Entity* entity) {
     else {
         Vector2 reference = new_position;
         while (atomicCAS((int*)&grid->entities[(int)round(new_position.x)*GRID_SIZE+(int)round(new_position.y)].type, NONE, (int)entity->type) != NONE) {
+            /* If the position is not free, try looking for a nearby one. */
+
+            /* Get the number of the free positions. */
             int num_free = 0;
             for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
                 for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
@@ -350,11 +360,12 @@ __device__ void diffuse_entity(Grid* grid, Entity* entity) {
                 }
             }
 
+            /* If there are no free positions, the entity remains stationary. */
             if (num_free == 0)
                 return;
 
+            /* Extract a random index to decide which position will be chosen. */
             int rand = device_rand(&grid->seed) % num_free;
-
             int free = 0;
             for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
                 for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
@@ -369,6 +380,7 @@ __device__ void diffuse_entity(Grid* grid, Entity* entity) {
                         continue;
 
                     if (grid_is_pos_free(grid, position)) {
+                        /* Check if the current index is the chosen one. */
                         if (rand == free) {
                             new_position = position;
                             break;
@@ -433,6 +445,7 @@ __device__ void b_cell_interact(Grid* grid, Entity* cell) {
             return;
     }
 
+    /* Look for nearby entities and bind with a compatible one. */
     Vector2 reference = cell->position;
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
         for (int j = -PROXIMITY_DIST; j <= PROXIMITY_DIST; j++) {
@@ -467,17 +480,8 @@ __device__ void b_cell_interact(Grid* grid, Entity* cell) {
     }
 }
 
-// __device__ void t_cell_interact(Grid* grid, Entity* tcell) {
-//     switch (tcell->status) {
-//         case CS_ACTIVE:
-//             // wait for a b cell to interact with me
-//             break;
-//         default:
-//             break;
-//     }
-// }
-
 __device__ void antibody_interact(Grid* grid, Entity* antibody) {
+    /* Look for nearby antigens and eliminate one. */
     EntityType type = AG_MOLECOLE;
     Vector2 reference = antibody->position;
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {

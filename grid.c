@@ -123,6 +123,7 @@ Entity** look_for_nearby_entities(Grid* grid, Vector2 reference, EntityType type
 
             Entity entity = grid_get(grid, position);
             if (entity.type == type) {
+                /* Only consider entities that haven't yet interacted with any other one. */
                 if (!entity.has_interacted) {
                     array[*count] = &grid->entities[(int)round(position.x)][(int)round(position.y)];
                     (*count)++;
@@ -162,6 +163,7 @@ Vector2* find_free_pos_nearby(Grid* grid, Vector2 reference) {
     Vector2* position = NULL;
     Vector2* free_positions = find_all_free_nearby_pos(grid, reference, &n);
     if (n > 0) {
+        /* Extract a random position. */
         int index = rand() % n;
         position = (Vector2*)memalloc(sizeof(Vector2));
         *position = free_positions[index];
@@ -176,9 +178,11 @@ Vector2* find_n_free_nearby_pos(Grid* grid, Vector2 reference, int max, int* cou
     Vector2* free_positions = find_all_free_nearby_pos(grid, reference, &n);
     if (n > 0) {
         Vector2* array = (Vector2*)memalloc(n * sizeof(Vector2));
+        /* Extract the requested number of positions. */
         for (int i = 0; i < max; i++) {
             if (n < 1)
                 break;
+            /* Extract a random position. */
             int seed = rand() % n;
             array[*count] = free_positions[seed];
             free_positions[seed] = free_positions[n-1];

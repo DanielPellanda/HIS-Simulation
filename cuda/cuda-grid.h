@@ -27,7 +27,7 @@
 
 #define GRID_SIZE 1000
 
-/* A grid containing a list of each type of entity */
+/* A grid containing all entities of the system. */
 typedef struct
 {
    Entity entities[GRID_SIZE*GRID_SIZE];
@@ -36,8 +36,6 @@ typedef struct
    int seed;
 }
 Grid;
-
-// void block_copy_to_host(Entity* d_block, Grid* grid, Entity* block);
 
 /* Inserts an entity inside the grid. */
 void grid_insert(Grid* grid, Entity entity);
@@ -64,22 +62,6 @@ __host__ __device__ bool grid_is_pos_free(Grid* grid, Vector2 position);
 
 
 
-/* Returns an array of entities of a specific type close to the specified position.
-   The referenced integer parameter gets set to the length of the array generated. */
-// Entity** look_for_nearby_entities(Grid* grid, Vector2 position, EntityType type, int* count);
-
-// Vector2* find_all_free_nearby_pos(Grid* grid, Vector2 reference, int* count);
-
-// /* Gets the nearest free available position within PROXIMITY_DIST distance away
-//    from the origin position passed as parameter.
-//    Returns NULL if no free position can be found within range. */
-// Vector2* find_free_pos_nearby(Grid* grid, Vector2 reference);
-
-// /* Returns an array of all available positions within PROXIMITY_DIST distance away
-//    from the origin position passed as parameter. 
-//    The referenced integer parameter gets set to the length of the array generated. */
-// Vector2* find_n_free_nearby_pos(Grid* grid, Vector2 reference, int n, int* count);
-
 /* Clones the specified entity in the nearest free position.
    If no available position can be found, the entity will not get duplicated. */
 __device__ void duplicate_entity(Grid* grid, Entity entity);
@@ -98,9 +80,6 @@ __device__ void process_interactions(Grid* grid, Entity* entity);
 
 /* Process interactions for B_CELL type entities. */
 __device__ void b_cell_interact(Grid* grid, Entity* bcell);
-
-/* Process interactions for T_CELL type entities. */
-// __device__ void t_cell_interact(Grid* grid, Entity* tcell);
 
 /* Process interactions for AB_MOLECOLE type entities. */
 __device__ void antibody_interact(Grid* grid, Entity* antibody);

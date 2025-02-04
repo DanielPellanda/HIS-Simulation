@@ -70,7 +70,7 @@ void reinsert_antigens(Grid* grid);
    The last two parameters are the array of free positions and its length. */
 void populate_grid(Grid* grid, EntityType type, int n, Vector2* positions, int* length);
 
-/* Creates a PNG image graph with all the entities of the grid */
+/* Creates a PNG image graph with all the entities of the grid. */
 void plot_graph(Grid* grid, char* name, int timestep);
 
 void debug_grid(Grid* grid, int step);
@@ -78,7 +78,5 @@ void debug_grid(Grid* grid, int step);
 void check_grid(Grid* grid);
 
 void print_grid(Grid* grid);
-
-// void print_element_count(Grid* grid);
 
 #endif

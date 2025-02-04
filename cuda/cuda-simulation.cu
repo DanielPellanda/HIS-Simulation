@@ -348,10 +348,3 @@ void print_grid(Grid* grid) {
     }
     printf("\n");
 }
-
-// void print_element_count(Grid* grid) {
-//     for (int i = 0; i < MAX_ENTITYTYPE; i++) {
-//         printf("%s elements: %d\n", type_to_string(i), grid->size[i]);
-//     }
-//     printf("\n");
-// }

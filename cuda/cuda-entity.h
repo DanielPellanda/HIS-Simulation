@@ -93,6 +93,7 @@ __device__ void hypermutation(Entity* entity);
 /* Creates a new entity with the type and position specified as parameters. */
 __host__ __device__ Entity create_entity(EntityType type, Vector2 position, int seed);
 
+/* Returns a string representing the entity type specified. */
 __host__ __device__ const char* type_to_string(EntityType type);
 
 #endif
