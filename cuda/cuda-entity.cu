@@ -38,11 +38,7 @@ __device__ double affinity_potential(unsigned char receptor1, unsigned char rece
 __device__ bool can_entities_bind(Entity* entity, Entity entity2) {
     for (int i = 0; i < RECEPTOR_SIZE; i++) {
         /* Only one pair of receptors needs to bind. */
-        bool result = false;
-        if (device_randdouble(entity->seed) < affinity_potential(entity->receptor[i], entity2.receptor[i]))
-            result = true;
-        entity->seed = device_rand(entity->seed);
-        if (result)
+        if (device_randdouble(&entity->seed) < affinity_potential(entity->receptor[i], entity2.receptor[i]))
             return true;
     }
     return false;
@@ -52,11 +48,10 @@ __device__ void hypermutation(Entity* entity) {
     // Binomial distribution
     for (int i = 0; i < RECEPTOR_SIZE; i++) {
         for (int j = 0; j < BITS_IN_A_BYTE; j++) {
-            if (device_randdouble(entity->seed) < MUTATION_CHANCE) {
+            if (device_randdouble(&entity->seed) < MUTATION_CHANCE) {
                 bool set = !getbit(entity->receptor[i], j);
                 setbit(&entity->receptor[i], set, j);
             }
-            entity->seed = device_rand(entity->seed);
         }
     }
 }
@@ -70,9 +65,9 @@ __host__ __device__ Entity create_entity(EntityType type, Vector2 position, int 
     entity.has_moved = 1; // being moving on the next time step
     entity.just_created = 1;
     #ifdef __CUDA_ARCH__
-        entity.seed = device_rand(seed); 
+        entity.seed = device_rand(&seed); 
         for (int i = 0; i < RECEPTOR_SIZE; i++)
-            entity.receptor[i] = device_randbyte(entity.seed);
+            entity.receptor[i] = device_randbyte(&entity.seed);
     #else
         entity.seed = rand(); 
         for (int i = 0; i < RECEPTOR_SIZE; i++)

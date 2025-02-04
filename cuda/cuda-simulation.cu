@@ -60,7 +60,7 @@ __global__ void kernel_process_interactions(Grid* grid) {
     if (grid->entities[threadidx].just_created)
         return;
     
-    grid->entities[threadidx].seed = device_rand(grid->seed);
+    grid->entities[threadidx].seed = device_rand(&grid->seed);
     process_interactions(grid, &grid->entities[threadidx]);
     grid->entities[threadidx].has_moved = 0;
 }
@@ -78,7 +78,7 @@ __global__ void kernel_diffuse_entity(Grid* grid) {
         return;
     }
     
-    grid->entities[threadidx].seed = device_rand(grid->seed);
+    grid->entities[threadidx].seed = device_rand(&grid->seed);
     if (atomicCAS(&grid->entities[threadidx].has_moved, 0, 1) == 0) {
         diffuse_entity(grid, &grid->entities[threadidx]);
     }

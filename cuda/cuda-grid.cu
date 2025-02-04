@@ -186,8 +186,7 @@ __device__ void duplicate_entity(Grid* grid, Entity entity) {
     if (num_free == 0)
         return;
 
-    int rand = device_rand(grid->seed) % num_free;
-    grid->seed = device_rand(grid->seed);
+    int rand = device_rand(&grid->seed) % num_free;
 
     int freecount = 0;
     for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {
@@ -204,8 +203,7 @@ __device__ void duplicate_entity(Grid* grid, Entity entity) {
 
             if (grid_is_pos_free(grid, position)) {
                 if (rand == freecount) {
-                    Entity new_entity = create_entity(entity.type, position, device_rand(grid->seed));
-                    grid->seed = device_rand(grid->seed);
+                    Entity new_entity = create_entity(entity.type, position, device_rand(&grid->seed));
                     for (int i = 0; i < RECEPTOR_SIZE; i++)
                         new_entity.receptor[i] = entity.receptor[i];
                     new_entity.velocity = entity.velocity;
@@ -250,8 +248,7 @@ __device__ void generate_antibodies(Grid* grid, Entity cell) {
     int indexes[AB_CREATED_PER_CELL];
     for (int i = 0; i < AB_CREATED_PER_CELL; i++) {
         if (i < to_create) {
-            indexes[i] = device_rand(grid->seed) % num_free;
-            grid->seed = device_rand(grid->seed);
+            indexes[i] = device_rand(&grid->seed) % num_free;
         }
         else {
             indexes[i] = -1;
@@ -281,8 +278,7 @@ __device__ void generate_antibodies(Grid* grid, Entity cell) {
                 }
 
                 if (found) {
-                    Entity entity = create_entity(AB_MOLECOLE, position, device_rand(grid->seed));
-                    grid->seed = device_rand(grid->seed);
+                    Entity entity = create_entity(AB_MOLECOLE, position, device_rand(&grid->seed));
                     for (int i = 0; i < RECEPTOR_SIZE; i++)
                         entity.receptor[i] = cell.receptor[i];
                     
@@ -315,10 +311,8 @@ __device__ void diffuse_entity(Grid* grid, Entity* entity) {
     }
 
     /* Box Muller */
-    double r1 = device_randdouble(grid->seed);
-    grid->seed = device_rand(grid->seed);
-    double r2 = device_randdouble(grid->seed);
-    grid->seed = device_rand(grid->seed);
+    double r1 = device_randdouble(&grid->seed);
+    double r2 = device_randdouble(&grid->seed);
     double random_x = sqrt(-2 * log(r1)) * cos(2 * PI * r2);
     double random_y = sqrt(-2 * log(r1)) * sin(2 * PI * r2);
 
@@ -359,8 +353,7 @@ __device__ void diffuse_entity(Grid* grid, Entity* entity) {
             if (num_free == 0)
                 return;
 
-            int rand = device_rand(grid->seed) % num_free;
-            grid->seed = device_rand(grid->seed);
+            int rand = device_rand(&grid->seed) % num_free;
 
             int free = 0;
             for (int i = -PROXIMITY_DIST; i <= PROXIMITY_DIST; i++) {

@@ -76,7 +76,7 @@ typedef struct
     int has_interacted;
     int has_moved;
     int just_created;
-    double seed;
+    int seed;
 } 
 Entity;
 
