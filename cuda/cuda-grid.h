@@ -25,7 +25,7 @@
 #include "cuda-entity.h"
 #include "cuda-math.h"
 
-#define GRID_SIZE 1000
+#define GRID_SIZE 500
 
 /* A grid containing all entities of the system. */
 typedef struct

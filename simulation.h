@@ -40,10 +40,10 @@
 /* Reinsert all antigens after the completion of 50% of the timesteps. */
 #define REINSERT_AG
 
-#define DEFAULT_TIMESTEPS 20000
-#define DEFAULT_B_CELLS 20
-#define DEFAULT_T_CELLS 20
-#define DEFAULT_AG_MOLECULES 400
+#define DEFAULT_TIMESTEPS 5000
+#define DEFAULT_B_CELLS 200
+#define DEFAULT_T_CELLS 200
+#define DEFAULT_AG_MOLECULES 2000
 
 extern int TIMESTEPS;
 extern int B_CELL_NUM;

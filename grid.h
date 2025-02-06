@@ -24,7 +24,7 @@
 
 #include "entity.h"
 
-#define DEFAULT_GRID_SIZE 1000
+#define DEFAULT_GRID_SIZE 500
 
 extern int GRID_SIZE;
 
