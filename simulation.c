@@ -35,24 +35,24 @@ int AG_MOLECULE_NUM = DEFAULT_AG_MOLECULES;
 
 void time_step(Grid* grid) {
     /* Generate the process order of each entity. */
-    Entity** entity_list = generate_order(grid);
-    if (entity_list == NULL)
+    Entity** entities = generate_order(grid);
+    if (entities == NULL)
         return;
 
     int size = grid->total_size;
     /* Process any interaction between entities. */
     for (int i = 0; i < size; i++) {
-        if (entity_list[i]->type == NONE)
+        if (entities[i]->type == NONE)
             continue;
-        process_interactions(grid, entity_list[i]);
+        process_interactions(grid, entities[i]);
     }
     /* Process the entities movement. */
     for (int i = 0; i < size; i++) {
-        if (entity_list[i]->type == NONE)
+        if (entities[i]->type == NONE)
             continue;
-        diffuse_entity(grid, entity_list[i]);
+        diffuse_entity(grid, entities[i]);
     }
-    memfree(entity_list);
+    memfree(entities);
 }
 
 Entity** generate_order(Grid* grid) {
