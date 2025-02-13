@@ -193,7 +193,7 @@ __device__ void diffuse_entity(Grid* grid, Entity* entity) {
             break;
         case AG_MOLECOLE:
         case AB_MOLECOLE:
-            mass = 0.1;
+            mass = 0.01;
             break;
         default:
             break;

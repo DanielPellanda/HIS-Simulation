@@ -39,7 +39,7 @@
 /* The type of an entity. */
 typedef enum 
 {
-    NONE = -1,   // Empty cell in the grid
+    NONE = -1, // Empty cell in the grid
 
     // Cells
     B_CELL, // Lymphocyte B
